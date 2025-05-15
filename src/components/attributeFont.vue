@@ -182,9 +182,8 @@
     <!-- <Divider plain></Divider> -->
   </div>
 </template>
-
 <script setup name="AttrBute">
-import { watch, ref } from 'vue';
+import { ref } from 'vue';
 import useSelect from '@/hooks/select';
 import { Spin, Upload, Notice, Dropdown } from 'view-ui-plus';
 import InputNumber from '@/components/inputNumber';
@@ -218,40 +217,176 @@ const baseAttr = reactive({
   linethrough: false,
   overline: false,
 });
-
 const fontsList = ref([]);
+// 初始化加载字体
+// 先加载系统字体
 canvasEditor.getFontList().then((list) => {
-  fontsList.value = list;
-  syncFontsList();
+  systemFonts.value = list;
+  // 再加载已上传字体
+  loadUploadedFonts();
 });
+// 存储系统字体列表
+const systemFonts = ref([]);
+// 记录正在处理的文件名，防止重复上传
+const processingFiles = ref(new Set());
 
 const base64Encode = (str) => {
   return btoa(unescape(encodeURIComponent(str)));
 };
 // 存储上传的字体文件
 const uploadedFonts = ref([]);
-// 从 localStorage 加载数据
-const loadUploadedFonts = () => {
-  const storedFonts = localStorage.getItem('uploadedFonts');
-  if (storedFonts) {
-    uploadedFonts.value = JSON.parse(storedFonts);
+
+// IndexedDB 操作
+let db;
+const DB_NAME = 'canvasFontsDB';
+const STORE_NAME = 'uploadedFonts';
+
+// 初始化 IndexedDB
+const initDB = () => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      const store = db.createObjectStore(STORE_NAME, { keyPath: 'name' });
+      store.createIndex('name', 'name', { unique: true });
+    };
+
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      resolve();
+    };
+
+    request.onerror = (event) => {
+      console.error('IndexedDB error:', event.target.error);
+      reject(event.target.error);
+    };
+  });
+};
+
+// 保存字体到 IndexedDB
+const saveFontToDB = (fontData, file) => {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('DB not initialized'));
+
+    // 读取文件内容为 ArrayBuffer
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const arrayBuffer = event.target.result;
+
+      // 在文件读取完成后创建事务
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+
+      // 保存字体数据和文件内容
+      const fullFontData = { ...fontData, fileContent: arrayBuffer };
+      const request = store.put(fullFontData);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+
+      // 监听事务完成或错误
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    };
+
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+// 从 IndexedDB 加载字体
+const loadFontsFromDB = () => {
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('DB not initialized'));
+
+    const transaction = db.transaction([STORE_NAME], 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.getAll();
+
+    request.onsuccess = (event) => {
+      const fonts = event.target.result || [];
+      resolve(fonts);
+    };
+
+    request.onerror = () => reject(request.error);
+  });
+};
+
+// 检查字体是否已存在（包括系统字体和已上传字体）
+const isFontExists = (fontName) => {
+  // 检查系统字体
+  if (systemFonts.value.some((font) => font.name === fontName)) {
+    return true;
+  }
+  // 检查已上传字体
+  if (uploadedFonts.value.some((font) => font.name === fontName)) {
+    return true;
+  }
+  // 检查正在处理的文件
+  if (processingFiles.value.has(fontName)) {
+    return true;
+  }
+  return false;
+};
+
+// 从 IndexedDB 加载上传的字体
+const loadUploadedFonts = async () => {
+  try {
+    await initDB();
+    const fonts = await loadFontsFromDB();
+
+    // 清空旧数据
+    uploadedFonts.value = [];
+
+    // 处理每个字体，重新创建 URL 和样式
+    for (const font of fonts) {
+      // 从 ArrayBuffer 创建 Blob
+      const blob = new Blob([font.fileContent], { type: 'application/octet-stream' });
+      const fontUrl = URL.createObjectURL(blob);
+
+      // 重新应用字体样式
+      const fontFace = `
+        @font-face {
+          font-family: '${font.name}';
+          src: url('${fontUrl}') format('truetype'),
+               url('${fontUrl.replace('.ttf', '.woff')}') format('woff');
+        }
+      `;
+
+      const style = document.createElement('style');
+      style.type = 'text/css';
+      style.appendChild(document.createTextNode(fontFace));
+      document.head.appendChild(style);
+
+      // 更新字体数据中的 URL
+      font.file = fontUrl;
+
+      // 添加到已上传字体列表（确保不重复）
+      if (!uploadedFonts.value.some((f) => f.name === font.name)) {
+        uploadedFonts.value.push(font);
+      }
+    }
+
+    syncFontsList();
+  } catch (error) {
+    console.error('Failed to load fonts from IndexedDB:', error);
+    Notice.warning({
+      title: '加载失败',
+      desc: '无法加载已上传的字体',
+      duration: 2,
+    });
   }
 };
+
 // 更新 fontsList
 const syncFontsList = () => {
-  // 遍历 uploadedFonts，将每一项按顺序插入到 fontsList 中
-  fontsList.value = [...uploadedFonts.value, ...fontsList.value];
+  // 合并系统字体和已上传字体，保持 fontsList 结构不变
+  fontsList.value = [...uploadedFonts.value, ...systemFonts.value];
 };
-// 监听 uploadedFonts 的变化并同步到 localStorage
-watch(
-  uploadedFonts,
-  (newFonts) => {
-    localStorage.setItem('uploadedFonts', JSON.stringify(newFonts));
-  },
-  { deep: true }
-);
+
 // 处理上传的字体文件
-const handleBeforeUpload = (file) => {
+const handleBeforeUpload = async (file) => {
   // 处理格式错误
   const { name } = file;
   const format = name.split('.').pop().toLowerCase(); // 将后缀转换为小写
@@ -263,79 +398,117 @@ const handleBeforeUpload = (file) => {
     });
     return false;
   } else {
-    // 检查是否重复
     const fontName = name.split('.')[0];
-    if (uploadedFonts.value.some((font) => font.name === fontName)) {
+
+    // 检查字体是否已存在或正在处理
+    if (isFontExists(fontName)) {
       Notice.warning({
         title: '重复上传',
-        desc: `字体 "${fontName}" 已存在`,
+        desc: `字体 "${fontName}" 已存在或正在上传`,
         duration: 2,
       });
       return false;
     }
-    Notice.success({
-      title: '上传成功',
-      desc: '字体文件上传成功',
-      duration: 2,
-    });
-    // 动态加载字体
-    const fontUrl = URL.createObjectURL(file);
-    const fontFace = `
-    @font-face {
-      font-family: '${fontName}';
-       src: url('${fontUrl}') format('truetype'),
-            ;
-    }
-  `;
-    const style = document.createElement('style');
-    style.type = 'text/css';
-    style.appendChild(document.createTextNode(fontFace));
-    document.head.appendChild(style);
 
-    // 动态生成 SVG 图标
-    const svgIcon = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="990" height="120" viewBox="0 0 990 120">
-      <style>
+    // 标记为正在处理
+    processingFiles.value.add(fontName);
+
+    try {
+      // 动态加载字体
+      const fontUrl = URL.createObjectURL(file);
+      const fontFace = `
         @font-face {
           font-family: '${fontName}';
           src: url('${fontUrl}') format('truetype'),
                url('${fontUrl.replace('.ttf', '.woff')}') format('woff');
         }
-        text {
-          font-family: '${fontName}';
-        }
-      </style>
-      <rect width="990" height="120" fill="transparent" />
-      <text x="10" y="50%" font-family='${fontName}' dominant-baseline="middle"  fill="#333" font-size="70">
-        ${fontName}
-      </text>
-    </svg>
-  `;
+      `;
 
-    // 构造字体数据对象
-    const fontData = {
-      name: name.split('.')[0], // 文件名（去掉扩展名）
-      type: 'cn', // 假设为中文字体，可根据需求动态设置
-      file: URL.createObjectURL(file), // 生成文件的本地 URL
-      img: `data:image/svg+xml;base64,${base64Encode(svgIcon)}`, // 将 SVG 转换为 Base64 格式
-    };
-    // 将对象添加到数组
-    uploadedFonts.value.unshift(fontData);
-    fontsList.value.unshift(fontData);
-    return false; // 阻止默认上传行为
+      const style = document.createElement('style');
+      style.type = 'text/css';
+      style.appendChild(document.createTextNode(fontFace));
+      document.head.appendChild(style);
+
+      // 动态生成 SVG 图标
+      const svgIcon = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="990" height="120" viewBox="0 0 990 120">
+          <style>
+            @font-face {
+              font-family: '${fontName}';
+              src: url('${fontUrl}') format('truetype'),
+                   url('${fontUrl.replace('.ttf', '.woff')}') format('woff');
+            }
+            text {
+              font-family: '${fontName}';
+            }
+          </style>
+          <rect width="990" height="120" fill="transparent" />
+          <text x="10" y="50%" font-family='${fontName}' dominant-baseline="middle"  fill="#333" font-size="70">
+            ${fontName}
+          </text>
+        </svg>
+      `;
+
+      // 构造字体数据对象
+      const fontData = {
+        name: fontName,
+        type: 'cn',
+        file: fontUrl,
+        img: `data:image/svg+xml;base64,${base64Encode(svgIcon)}`,
+      };
+
+      // 保存到 IndexedDB
+      await saveFontToDB(fontData, file);
+
+      // 添加到已上传字体列表
+      uploadedFonts.value.unshift(fontData);
+
+      // 更新字体列表
+      syncFontsList();
+
+      Notice.success({
+        title: '上传成功',
+        desc: `字体 "${fontName}" 上传成功`,
+        duration: 3,
+      });
+
+      return false; // 阻止默认上传行为
+    } catch (error) {
+      console.error('Failed to upload font:', error);
+      Notice.error({
+        title: '上传失败',
+        desc: `保存字体 "${fontName}" 时出错`,
+        duration: 2,
+      });
+      return false;
+    } finally {
+      // 移除处理标记
+      processingFiles.value.delete(fontName);
+    }
   }
 };
+
 // 删除指定的本地字体
 const removeFont = (name) => {
-  // 从uploadedFonts中删除对应的字体
-  uploadedFonts.value = uploadedFonts.value.filter((font) => font.name !== name);
-  // 从 fontsList 中删除对应的字体
-  fontsList.value = fontsList.value.filter((font) => font.name !== name);
+  return new Promise((resolve, reject) => {
+    if (!db) return reject(new Error('DB not initialized'));
+
+    const transaction = db.transaction([STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.delete(name);
+
+    request.onsuccess = () => {
+      // 从uploadedFonts中删除对应的字体
+      uploadedFonts.value = uploadedFonts.value.filter((font) => font.name !== name);
+      // 更新字体列表
+      syncFontsList();
+      resolve();
+    };
+
+    request.onerror = () => reject(request.error);
+  });
 };
-onMounted(() => {
-  loadUploadedFonts();
-  syncFontsList(); // 同步 fontsList
-});
+
 // 字体对齐方式
 const textAlignList = ['left', 'center', 'right', 'justify'];
 // 对齐图标
@@ -426,6 +599,11 @@ onBeforeUnmount(() => {
   canvasEditor.off('selectCancel', selectCancel);
   canvasEditor.off('selectOne', getObjectAttr);
   canvasEditor.canvas.off('object:modified', getObjectAttr);
+
+  // 关闭数据库连接
+  if (db && db instanceof IDBDatabase && !db.close) {
+    db.close();
+  }
 });
 </script>
 

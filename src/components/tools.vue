@@ -72,6 +72,10 @@
         <barCodeIcon></barCodeIcon>
       </span>
     </div>
+    <Divider plain orientation="left">{{ $t('pic_font') }}</Divider>
+    <div class="tool-box">
+      <span @click="addPicFont()">图片文字</span>
+    </div>
   </div>
 </template>
 
@@ -97,6 +101,7 @@ import barCodeIcon from '@/assets/icon/tools/barCode.svg';
 // const { getCanvasBound, isOutsideCanvas } = useCalculate();
 
 import { useI18n } from 'vue-i18n';
+import { Divider } from 'view-ui-plus';
 
 const LINE_TYPE = {
   polygon: 'polygon',
@@ -277,7 +282,9 @@ const ensureObjectSelEvStatus = (evented, selectable) => {
     }
   });
 };
-
+const addPicFont = () => {
+  cancelDraw();
+};
 // 退出绘制状态
 const cancelDraw = () => {
   if (!state.isDrawingLineMode) return;
