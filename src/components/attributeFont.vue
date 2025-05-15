@@ -64,9 +64,7 @@
 
               <template #list>
                 <DropdownMenu>
-                  <!-- <DropdownItem v-if="!uploadedFonts.length" style="margin: 0 auto">
-                    请先上传
-                  </DropdownItem> -->
+                  <DropdownItem v-if="!uploadedFonts.length">无本地字库，请先上传</DropdownItem>
 
                   <DropdownItem v-for="font in uploadedFonts" :value="font.name" :key="font.name">
                     <div class="font-manage">
@@ -540,6 +538,7 @@ onBeforeUnmount(() => {
     // justify-content: center;
     width: 100%;
     overflow: hidden;
+    user-select: none;
     :deep(.ivu-dropdown) {
       width: 268px;
     }
