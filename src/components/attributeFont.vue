@@ -543,6 +543,10 @@ onBeforeUnmount(() => {
     :deep(.ivu-dropdown) {
       width: 268px;
     }
+    :deep(.ivu-select-dropdown) {
+      max-height: 200px;
+      overflow-y: auto;
+    }
     .dropText {
       width: 100%;
       display: flex;
