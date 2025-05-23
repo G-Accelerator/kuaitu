@@ -28,6 +28,7 @@ import attributeColor from '@/components/attributeColor.vue';
 import attributeBarcode from '@/components/attributeBarcode.vue';
 import attributeQrCode from '@/components/attributeQrCode.vue';
 import cropperImg from '@/components/cropperImg.vue';
+import attributeTextImage from '@/components/attributeTextImage.vue';
 // hooks
 import useSelectListen from '@/hooks/useSelectListen';
 
@@ -106,6 +107,8 @@ const switchAttrBar = () => {
         <attributeTextFloat></attributeTextFloat>
         <!-- 文字内容  -->
         <attribute-text-content></attribute-text-content>
+        <!-- 图片文字处理 -->
+        <attributeTextImage></attributeTextImage>
         <!-- 位置信息 -->
         <attributePostion></attributePostion>
         <!-- 阴影 -->

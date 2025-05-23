@@ -108,12 +108,18 @@ const config = ({ mode }) => {
     },
     server: {
       port: 3000,
+      host: '0.0.0.0',
       open: true,
       proxy: {
         '/fontFile': {
           target: 'https://github.com/',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/fontFile/, ''),
+        },
+        '/api': {
+          target: 'http://10.1.10.191:49120', // 目标服务器地址
+          changeOrigin: true,
+          pathRewrite: { '^/api': '' }, // 重写路径
         },
       },
     },
