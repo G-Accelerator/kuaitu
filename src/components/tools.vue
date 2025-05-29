@@ -435,13 +435,16 @@ const addTextImages = () => {
       fabric.Image.fromURL(imgElement.src, (img) => {
         img.set({
           id: charData.id,
+          font_id: 'STONE202411060002HAN003',
           name: charData.char,
           left: layout.x_offset, // 使用动态生成的 x_offset
           top: layout.y_offset, // 使用动态生成的 y_offset
           scaleX: 1, // 缩放比例
           scaleY: 1, // 缩放比例
+          extensionType: 'fontImage', // 扩展类型
         });
-
+        // 确保属性已正确设置
+        console.log('Image properties:', img);
         imageObjects.push(img);
 
         // 当所有图片加载完成后，创建组

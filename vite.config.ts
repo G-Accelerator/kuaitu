@@ -116,11 +116,12 @@ const config = ({ mode }) => {
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/fontFile/, ''),
         },
-        '/api': {
-          target: 'http://10.1.10.191:49120', // 目标服务器地址
-          changeOrigin: true,
-          pathRewrite: { '^/api': '' }, // 重写路径
-        },
+        // '/api': {
+        //   // target: 'http://10.1.10.191:49120', // 目标服务器地址
+        //   target: 'http://10.1.10.180:49120', // 目标服务器地址
+        //   changeOrigin: true,
+        //   pathRewrite: { '^/api': '' }, // 重写路径
+        // },
       },
     },
     preview: {

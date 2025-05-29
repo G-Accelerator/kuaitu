@@ -29,6 +29,7 @@ import attributeBarcode from '@/components/attributeBarcode.vue';
 import attributeQrCode from '@/components/attributeQrCode.vue';
 import cropperImg from '@/components/cropperImg.vue';
 import attributeTextImage from '@/components/attributeTextImage.vue';
+import attributeFontImage from '@/components/attributeFontImage.vue';
 // hooks
 import useSelectListen from '@/hooks/useSelectListen';
 
@@ -95,6 +96,8 @@ const switchAttrBar = () => {
         <attributeBarcode></attributeBarcode>
         <!-- 二维码 -->
         <attributeQrCode></attributeQrCode>
+        <!-- 图片文字（单个）处理-->
+        <attributeFontImage></attributeFontImage>
         <!-- 图片滤镜 -->
         <filters></filters>
         <!-- 图片描边 -->
@@ -107,8 +110,9 @@ const switchAttrBar = () => {
         <attributeTextFloat></attributeTextFloat>
         <!-- 文字内容  -->
         <attribute-text-content></attribute-text-content>
-        <!-- 图片文字处理 -->
+        <!-- 图片文字组处理 -->
         <attributeTextImage></attributeTextImage>
+
         <!-- 位置信息 -->
         <attributePostion></attributePostion>
         <!-- 阴影 -->

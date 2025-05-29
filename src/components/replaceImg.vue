@@ -33,8 +33,10 @@ const repleace = async () => {
     const [file] = await selectFiles({ accept: 'image/*', multiple: false });
     // 转字符串
     const fileStr = await getImgStr(file);
+
     // 字符串转El
     const imgEl = await insertImgFile(fileStr);
+
     const width = activeObject.get('width');
     const height = activeObject.get('height');
     const scaleX = activeObject.get('scaleX');

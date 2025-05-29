@@ -1,7 +1,7 @@
 <template>
-  <div class="box attr-item-box" v-if="isOne && isGroup && isImgFont">
+  <div class="box attr-item-box" v-if="isOne && isGroup && isTextImage">
     <Divider plain orientation="left">
-      <h4>图片文字属性</h4>
+      <h4>图片文字组属性</h4>
     </Divider>
     <div class="flex-view">
       <p>内容</p>
@@ -189,8 +189,8 @@ const strokeDashList = [
   },
 ];
 const extensionType = ref('');
-// 定义 isImgFont，判断 extensionType 是否为 textImage
-const isImgFont = computed(() => extensionType.value === 'textImage');
+// 定义 isTextImage，判断 extensionType 是否为 textImage
+const isTextImage = computed(() => extensionType.value === 'textImage');
 const selectedObject = ref(null); // 存储当前选中的对象
 const getObjectAttr = () => {
   const activeObject = canvasEditor.canvas.getActiveObject();
@@ -206,7 +206,7 @@ const modelList = ref([]); // 字体类型列表
 // 获取 modelList 数据
 const fetchModelList = async () => {
   try {
-    const response = await axios.get('/api/fonttools/remake/demo/imgfonts');
+    const response = await axios.get('http://10.1.10.180:49120/api/fonttools/remake/demo/imgfonts');
     // console.log('获取 modelList 数据成功:', response.data);
 
     modelList.value = response.data.data;
@@ -252,7 +252,10 @@ const updateGroupContent = async () => {
     // 调用接口获取数据
     let response;
     try {
-      response = await axios.post('/api/fonttools/remake/demo/imgfont/glyphs', postData);
+      response = await axios.post(
+        'http://10.1.10.180:49120/api/fonttools/remake/demo/imgfont/glyphs',
+        postData
+      );
     } catch (error) {
       console.error('接口请求失败:', error);
       return; // 如果接口请求失败，直接退出
@@ -274,7 +277,7 @@ const updateGroupContent = async () => {
     let loadedImages = 0; // 记录已加载的图片数量
 
     // 保存组的位置信息
-    const { left, top } = group;
+    const { left, top, scaleX, scaleY } = group;
 
     // 清空组内的内容
     const objectsToRemove = group._objects;
@@ -314,15 +317,16 @@ const updateGroupContent = async () => {
         (img) => {
           img.set({
             id: charData.id,
+            font_id: postData.font_id,
             name: charData.char,
             left: layout.x_offset, // 使用动态生成的 x_offset
             top: layout.y_offset, // 使用动态生成的 y_offset
             scaleX: 1, // 缩放比例
             scaleY: 1, // 缩放比例
+            imgSize: imgSize.value, // 图片大小
+            extensionType: 'fontImage', // 扩展类型
           });
-
           imageObjects.push(img);
-
           // 检查是否所有图片都已加载完成
           if (++loadedImages === charsArray.length) {
             createNewGroup();
@@ -352,6 +356,8 @@ const updateGroupContent = async () => {
       const newGroup = new fabric.Group(imageObjects, {
         left, // 保留原组的位置信息
         top,
+        scaleX,
+        scaleY, // 保持原组的缩放比例
         selectable: true,
         subTargetCheck: false,
       });
