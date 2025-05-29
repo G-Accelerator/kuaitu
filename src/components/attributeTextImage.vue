@@ -101,8 +101,9 @@ import { Spin } from 'view-ui-plus';
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
 import useSelect from '@/hooks/select';
 import axios from 'axios';
-const { fabric, canvasEditor, isOne, isGroup } = useSelect();
 
+const { fabric, canvasEditor, isOne, isGroup } = useSelect();
+const baseUrl = import.meta.env.APP_MYAPIHOST;
 const text = ref(''); // 输入的文字
 const imgSize = ref(128); // 图片大小
 const layout = ref(0); // 图片排版
@@ -206,7 +207,7 @@ const modelList = ref([]); // 字体类型列表
 // 获取 modelList 数据
 const fetchModelList = async () => {
   try {
-    const response = await axios.get('http://10.1.10.180:49120/api/fonttools/remake/demo/imgfonts');
+    const response = await axios.get(`${baseUrl}/imgfonts`);
     // console.log('获取 modelList 数据成功:', response.data);
 
     modelList.value = response.data.data;
@@ -252,10 +253,7 @@ const updateGroupContent = async () => {
     // 调用接口获取数据
     let response;
     try {
-      response = await axios.post(
-        'http://10.1.10.180:49120/api/fonttools/remake/demo/imgfont/glyphs',
-        postData
-      );
+      response = await axios.post(`${baseUrl}/imgfont/glyphs`, postData);
     } catch (error) {
       console.error('接口请求失败:', error);
       return; // 如果接口请求失败，直接退出

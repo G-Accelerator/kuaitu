@@ -50,6 +50,7 @@ import { Utils } from '@kuaitu/core';
 import { debounce } from 'lodash-es';
 const { insertImgFile } = Utils;
 const { isOne, canvasEditor } = useSelect();
+const baseUrl = import.meta.env.APP_MYAPIHOST;
 const selectedFontData = reactive({
   id: '',
   font_id: '',
@@ -85,18 +86,17 @@ const displayedFontImgList = computed(() => {
 const isLoading = ref(false); // 控制加载动画的显示
 // 获取备选字体
 const getFontImgList = debounce(async () => {
+  console.log('baseUrl', baseUrl);
+
   try {
     isLoading.value = true; // 显示加载动画
-    const response = await axios.get(
-      'http://10.1.10.180:49120/api/fonttools/remake/demo/imgfont/glyph/nchoices',
-      {
-        params: {
-          font_id: selectedFontData.font_id || '',
-          char: selectedFontData.name || '',
-          img_size: selectedFontData.imgSize || 128,
-        },
-      }
-    );
+    const response = await axios.get(`${baseUrl}/imgfont/glyph/nchoices`, {
+      params: {
+        font_id: selectedFontData.font_id || '',
+        char: selectedFontData.name || '',
+        img_size: selectedFontData.imgSize || 128,
+      },
+    });
     // const response = {
     //   data: {
     //     data: [
@@ -270,14 +270,11 @@ const replaceFontImage = async (index, newFontImg) => {
     console.log('font_id', selectedFontData.font_id);
     console.log('char', selectedFontData.name);
     // 向接口发送 POST 请求
-    const response = await axios.post(
-      'http://10.1.10.180:49120/api/fonttools/remake/demo/imgfont/glyph/choice',
-      {
-        font_id: selectedFontData.font_id,
-        char: selectedFontData.name,
-        glyph_id: newFontImg.id,
-      }
-    );
+    const response = await axios.post(`${baseUrl}/imgfont/glyph/choice`, {
+      font_id: selectedFontData.font_id,
+      char: selectedFontData.name,
+      glyph_id: newFontImg.id,
+    });
     // 检查接口返回的 code 是否为 0
     if (response.data.code !== 0) {
       console.error('接口验证失败，code:', response.data.code);
