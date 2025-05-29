@@ -24,7 +24,7 @@
     <div class="flex-view">
       <div class="flex-item">
         <div class="left font-selector">
-          <Select v-model="id" placeholder="请选择字体类型" not-found-text="获取数据失败">
+          <Select v-model="id" placeholder="请选择字体类型" not-found-text="获取数据失败" clearable>
             <Option v-for="item in modelList" :value="item.id" :key="item.id">
               <div class="font-item" :style="`background-image:url('${item.perview}');`">
                 {{ !item.perview ? item : '' }}
