@@ -7,7 +7,7 @@
       <p>内容</p>
       <span class="flex-item">
         <Input
-          v-model="text"
+          v-model="selectedGroupAttributes.sentence"
           placeholder="请输入文字..."
           style="width: 95%; margin: 0 auto; margin-right: 1px"
         ></Input>
@@ -15,7 +15,7 @@
     </div>
     <div class="flex-view">
       <p>图片排版</p>
-      <RadioGroup v-model="layout" type="button" style="width: 200px">
+      <RadioGroup v-model="selectedGroupAttributes.layout" type="button" style="width: 200px">
         <Radio :label="0" style="width: 100px">横排版</Radio>
         <Radio :label="1" style="width: 100px">竖排版</Radio>
       </RadioGroup>
@@ -24,8 +24,12 @@
     <div class="flex-view">
       <div class="flex-item">
         <div class="left font-selector">
-          <Select v-model="id" placeholder="请选择字体类型" not-found-text="获取数据失败" clearable>
-            <Option v-for="item in modelList" :value="item.id" :key="item.id">
+          <Select
+            v-model="selectedGroupAttributes.fontId"
+            placeholder="请选择字体类型"
+            not-found-text="获取数据失败"
+          >
+            <Option v-for="item in fontIdList" :value="item.id" :key="item.id">
               <div class="font-item" :style="`background-image:url('${item.perview}');`">
                 {{ !item.perview ? item : '' }}
                 <span style="display: none">{{ item.name }}</span>
@@ -34,7 +38,11 @@
           </Select>
         </div>
         <div class="right">
-          <InputNumber v-model="imgSize" append="图幅" :min="1"></InputNumber>
+          <InputNumber
+            v-model="selectedGroupAttributes.imgSize"
+            append="图幅"
+            :min="1"
+          ></InputNumber>
         </div>
       </div>
     </div>
@@ -45,7 +53,7 @@
           <div class="ivu-col__box">
             <span class="label">字体颜色</span>
             <div class="content">
-              <ColorPicker v-model="color" alpha transfer></ColorPicker>
+              <ColorPicker v-model="selectedGroupAttributes.color" alpha transfer></ColorPicker>
             </div>
           </div>
         </Col>
@@ -58,12 +66,16 @@
           <div class="ivu-col__box">
             <span class="label">边框颜色</span>
             <div class="content">
-              <ColorPicker v-model="stroke.color" alpha />
+              <ColorPicker v-model="selectedGroupAttributes.stroke.color" alpha />
             </div>
           </div>
         </Col>
         <Col flex="1">
-          <InputNumber v-model="stroke.width" append="宽度" :min="0"></InputNumber>
+          <InputNumber
+            v-model="selectedGroupAttributes.stroke.width"
+            append="宽度"
+            :min="0"
+          ></InputNumber>
         </Col>
       </Row>
 
@@ -72,7 +84,7 @@
           <div class="ivu-col__box">
             <span class="label">边框类型</span>
             <div class="content">
-              <Select v-model="stroke.type">
+              <Select v-model="selectedGroupAttributes.stroke.type">
                 <Option
                   v-for="item in strokeDashList"
                   :value="item.label"
@@ -89,7 +101,14 @@
     <!-- 提交按钮 -->
     <div class="flex-view">
       <div class="flex-item">
-        <Button @click="updateGroupContent" type="primary" style="width: 100%">确认修改</Button>
+        <Button
+          @click="updateGroupContent"
+          type="primary"
+          style="width: 100%"
+          :disabled="!selectedGroupAttributes.sentence"
+        >
+          {{ selectedGroupAttributes.sentence ? '确认修改' : '请先输入内容' }}
+        </Button>
       </div>
     </div>
   </div>
@@ -104,16 +123,29 @@ import axios from 'axios';
 
 const { fabric, canvasEditor, isOne, isGroup } = useSelect();
 const baseUrl = import.meta.env.APP_MYAPIHOST;
-const text = ref(''); // 输入的文字
-const imgSize = ref(128); // 图片大小
-const layout = ref(0); // 图片排版
-const id = ref(''); // 选择的id
-const color = ref('rgba(0,0,0,1)'); // 字体颜色
-const stroke = reactive({
-  color: 'rgba(0,0,0,0)',
-  width: 0,
-  type: '',
-}); // 边框信息
+// 定义选中组的自定义属性
+const selectedGroupAttributes = reactive({
+  fontId: '', // 字体类型ID
+  sentence: '', // 输入的文字
+  imgSize: 1, // 图片大小
+  layout: 0, // 图片排版，0代表横排版，1代表竖排版
+  color: 'rgba(0,0,0,1)', // 字体颜色
+  stroke: {
+    color: 'rgba(0,0,0,0)', // 边框颜色
+    width: 0, // 边框宽度
+    type: '', // 边框类型
+  },
+});
+// const text = ref(''); // 输入的文字
+// const imgSize = ref(128); // 图片大小
+// const layout = ref(0); // 图片排版
+// const id = ref(''); // 选择的id
+// const color = ref('rgba(0,0,0,1)'); // 字体颜色
+// const stroke = reactive({
+//   color: 'rgba(0,0,0,0)',
+//   width: 0,
+//   type: '',
+// }); // 边框信息
 // 边框种类
 const strokeDashList = [
   {
@@ -197,33 +229,80 @@ const getObjectAttr = () => {
   const activeObject = canvasEditor.canvas.getActiveObject();
   extensionType.value = activeObject?.extensionType || '';
   if (activeObject && activeObject?.extensionType === 'textImage') {
-    const { sentence } = activeObject;
-    text.value = sentence || '';
+    const { sentence, imgSize, layout, fontId, color, stroke } = activeObject;
+    // text.value = sentence || '';
+    // 将解构的属性赋值到 selectedGroupAttributes
+    Object.assign(selectedGroupAttributes, {
+      sentence: sentence || '',
+      imgSize: imgSize || 1,
+      layout: layout || 0,
+      fontId: fontId || '',
+      color: color || 'rgba(0,0,0,1)',
+      stroke: {
+        color: stroke?.color || 'rgba(0,0,0,0)',
+        width: stroke?.width || 0,
+        type: stroke?.type || '',
+      },
+    });
+
+    console.log('selectedGroupAttributes:', selectedGroupAttributes);
     // console.log('activeObject', activeObject);
     // console.log('text.value', text.value);
   }
 };
-const modelList = ref([]); // 字体类型列表
-// 获取 modelList 数据
-const fetchModelList = async () => {
-  try {
-    const response = await axios.get(`${baseUrl}/imgfonts`);
-    // console.log('获取 modelList 数据成功:', response.data);
+// const modelList = ref([]); // 字体类型列表
+// // 获取 modelList 数据
+// const fetchModelList = async () => {
+//   try {
+//     const response = await axios.get(`${baseUrl}/imgfonts`);
+//     // console.log('获取 modelList 数据成功:', response.data);
 
-    modelList.value = response.data.data;
-    // console.log('modelList', modelList.value);
-  } catch (error) {
-    console.error('获取 modelList 数据失败:', error);
+//     modelList.value = response.data.data;
+//     // console.log('modelList', modelList.value);
+//   } catch (error) {
+//     console.error('获取 modelList 数据失败:', error);
+//   }
+// };
+// 获取字体id数据
+const fontIdList = JSON.parse(sessionStorage.getItem('fontIdList')) || [];
+const getFontIdList = async () => {
+  if (fontIdList.length > 0) {
+    // 如果 fontIdList 已经存在，直接使用
+    console.log('从会话存储中获取 fontIdList 数据:', fontIdList);
+  } else {
+    // 如果 fontIdList 不存在，重新获取
+    console.log('会话存储中没有 fontIdList 数据，重新获取');
+    try {
+      const response = await axios.get(`${baseUrl}/imgfonts`);
+      // console.log('获取 modelList 数据成功:', response.data);
+      if (!response || !response.data || !response.data.data) {
+        console.error('获取 fontIdList 数据失败:', response);
+        Spin.hide(); // 隐藏加载动画
+        return; // 如果数据无效，直接退出
+      }
+      fontIdList.push(...response.data.data);
+      console.log('获取fontIdList 数据成功:', fontIdList);
+      // 将 fontIdList 存储到会话存储中
+      sessionStorage.setItem('fontIdList', JSON.stringify(fontIdList));
+    } catch (error) {
+      console.error('获取fontIdList 数据失败:', error);
+    }
   }
 };
 let isUpdating = false; // 状态锁
+const showError = ref(false); // 控制错误提示的显示
 // 更新组内容的函数
 const updateGroupContent = async () => {
+  if (!selectedGroupAttributes.sentence) {
+    showError.value = true; // 显示错误提示
+    return;
+  }
   if (isUpdating) {
     console.warn('操作正在进行中，请稍候...');
     return;
   }
   isUpdating = true; // 设置状态锁
+  showError.value = false; // 隐藏错误提示
   Spin.show(); // 显示加载动画
   try {
     // 获取选中的组对象
@@ -235,17 +314,16 @@ const updateGroupContent = async () => {
 
     const group = activeObject;
 
-    //接口参数
     const postData = {
-      font_id: id.value || 'STONE202411060002HAN003',
-      chars: text.value, // 输入的文字
-      img_size: imgSize.value || 128, // 图片大小
-      layout: layout.value || 0, // 0 代表横排版，1 代表竖排版
-      color: color.value || 'rgba(0,0,0,1)', //#字体RGBA颜色 , 默认为 纯黑
+      font_id: selectedGroupAttributes.fontId,
+      chars: selectedGroupAttributes.sentence,
+      img_size: selectedGroupAttributes.imgSize,
+      layout: selectedGroupAttributes.layout,
+      color: selectedGroupAttributes.color,
       stroke: {
-        color: stroke.color || 'rgba(0,0,0,0)', // 边框颜色
-        width: stroke.width || 0, // 边框宽度
-        type: stroke.type || '', // 边框类型
+        color: selectedGroupAttributes.stroke.color,
+        width: selectedGroupAttributes.stroke.width,
+        type: selectedGroupAttributes.stroke.type,
       },
     };
     console.log('请求数据:', postData);
@@ -265,7 +343,7 @@ const updateGroupContent = async () => {
       return; // 如果数据无效，直接退出
     }
     const glyphsData = response.data.data;
-    // console.log('接口返回的数据:', glyphsData);
+    console.log('接口返回的数据:', glyphsData);
 
     const { char_glyph_dict, chars, layout_data } = glyphsData;
 
@@ -286,9 +364,9 @@ const updateGroupContent = async () => {
       const layout = layout_data[index]; // 按 chars 的顺序取 layout_data
       return {
         char,
-        x_offset: layout?.x_offset || index * 115.2, // 如果 layout_data 中没有对应数据，动态计算 x_offset
-        y_offset: layout?.y_offset || 0, // 如果 layout_data 中没有对应数据，默认 y_offset 为 0
-        z_index: layout?.z_index || index, // 如果 layout_data 中没有对应数据，按顺序设置 z_index
+        x_offset: layout?.x_offset, // 如果 layout_data 中没有对应数据，动态计算 x_offset
+        y_offset: layout?.y_offset, // 如果 layout_data 中没有对应数据，默认 y_offset 为 0
+        z_index: layout?.z_index, // 如果 layout_data 中没有对应数据，按顺序设置 z_index
       };
     });
 
@@ -298,12 +376,12 @@ const updateGroupContent = async () => {
       return;
     }
 
-    // 为每个字符寻找图片对象
-    filteredLayoutData.forEach((layout) => {
+    const imageObjectsMap = {}; // 用于存储加载完成的图片对象，按字符索引存储
+
+    filteredLayoutData.forEach((layout, index) => {
       const charData = char_glyph_dict[layout.char];
       if (!charData) {
         console.warn(`字符 "${layout.char}" 没有对应的图片数据`);
-        // 增加已加载计数，即使没有图片数据
         if (++loadedImages === charsArray.length) {
           createNewGroup();
         }
@@ -313,28 +391,39 @@ const updateGroupContent = async () => {
       fabric.Image.fromURL(
         charData.img,
         (img) => {
+          console.log(`加载图片: ${layout.char}`, img);
+
+          // 设置图片属性
           img.set({
             id: charData.id,
-            font_id: postData.font_id,
+            fontId: postData.font_id,
             name: charData.char,
-            left: layout.x_offset, // 使用动态生成的 x_offset
-            top: layout.y_offset, // 使用动态生成的 y_offset
-            scaleX: 1, // 缩放比例
-            scaleY: 1, // 缩放比例
-            imgSize: imgSize.value, // 图片大小
-            extensionType: 'fontImage', // 扩展类型
+            left: layout.x_offset,
+            top: layout.y_offset,
+            scaleX: selectedGroupAttributes.imgSize / img.width, // 根据 imgSize 计算缩放比例
+            scaleY: selectedGroupAttributes.imgSize / img.height, // 根据 imgSize 计算缩放比例
+            imgSize: selectedGroupAttributes.imgSize,
+            extensionType: 'fontImage',
           });
-          imageObjects.push(img);
+
+          // 按索引存储图片对象
+          imageObjectsMap[index] = img;
+
           // 检查是否所有图片都已加载完成
           if (++loadedImages === charsArray.length) {
+            // 按索引顺序将图片对象添加到 imageObjects
+            imageObjects.length = 0; // 清空数组
+            for (let i = 0; i < charsArray.length; i++) {
+              if (imageObjectsMap[i]) {
+                imageObjects.push(imageObjectsMap[i]);
+              }
+            }
             createNewGroup();
           }
         },
         {
-          // 错误处理
           onError: (e) => {
             console.error(`加载字符 "${layout.char}" 的图片失败`, e);
-            // 即使加载失败，也增加计数，避免无限等待
             if (++loadedImages === charsArray.length) {
               createNewGroup();
             }
@@ -350,6 +439,7 @@ const updateGroupContent = async () => {
         console.error('没有有效的图片对象可用于创建组');
         return;
       }
+      console.log('imageObjects:', imageObjects);
 
       const newGroup = new fabric.Group(imageObjects, {
         left, // 保留原组的位置信息
@@ -363,8 +453,14 @@ const updateGroupContent = async () => {
       // 更新组的自定义属性
       newGroup.set({
         sentence: postData.chars, // 更新句子
+        imgSize: postData.img_size, // 更新图片大小
+        layout: postData.layout, // 更新布局
+        fontId: postData.font_id, // 更新字体ID
+        color: postData.color, // 更新字体颜色
+        stroke: postData.stroke, // 更新边框信息
         extensionType: 'textImage', // 更新扩展类型
       });
+      console.log(postData.font_id, 'postData.font_id');
 
       // 替换画布上的旧组
       canvasEditor.canvas.remove(group);
@@ -384,7 +480,9 @@ const updateGroupContent = async () => {
 onMounted(() => {
   // 获取字体数据
   getObjectAttr();
-  fetchModelList();
+  getFontIdList(); // 获取字体ID列表
+  console.log('获取 fontIdList 数据:', fontIdList);
+
   // canvasEditor.on('selectCancel', selectCancel);
   canvasEditor.on('selectOne', getObjectAttr);
   canvasEditor.canvas.on('selection:updated', getObjectAttr);
@@ -405,7 +503,7 @@ onBeforeUnmount(() => {
   // 清理定时器或异步任务（如果有）
   // if (timer) clearTimeout(timer);
 
-  console.log('组件已卸载，资源已清理');
+  // console.log('组件已卸载，资源已清理');
 });
 </script>
 
@@ -492,5 +590,14 @@ onBeforeUnmount(() => {
       width: 100%;
     }
   }
+}
+.input-error {
+  border-color: red !important;
+}
+
+.error-message {
+  color: red;
+  font-size: 12px;
+  margin-top: 5px;
 }
 </style>

@@ -31,12 +31,12 @@
       </Button>
       <Page
         v-model="currentPage"
-        :total="allFontImgList.length"
+        :total="originalLength"
         :pageSize="9"
         simple
         @on-change="handlePageChange"
       />
-      <span>共{{ allFontImgList.length }}条</span>
+      <span>共{{ originalLength }}条</span>
     </div>
   </div>
 </template>
@@ -53,7 +53,7 @@ const { isOne, canvasEditor } = useSelect();
 const baseUrl = import.meta.env.APP_MYAPIHOST;
 const selectedFontData = reactive({
   id: '',
-  font_id: '',
+  fontId: '',
   name: '',
   src: '',
   imgSize: '',
@@ -69,14 +69,16 @@ const selectedIndex = ref(-1);
 const type = ref('');
 
 // 所有字体图片数据
-const allFontImgList = ref([]);
+const allFontImgList = ref(JSON.parse(sessionStorage.getItem('allFontImgList')) || []); // [{ fontId: '', char: '', glyphs: [] }]
 const originalLength = ref(0); // 用于保存原始长度
 // 当前显示的字体图片数据（基于分页）
 const displayedFontImgList = computed(() => {
+  const currentFontData = allFontImgList.value.find(
+    (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
+  );
+  const glyphs = currentFontData ? currentFontData.glyphs : [];
   const startIndex = (currentPage.value - 1) * 9;
-  console.log('allFontImgList.value', allFontImgList.value);
-  // 保存原始长度
-  const currentData = allFontImgList.value.slice(startIndex, startIndex + 9);
+  const currentData = glyphs.slice(startIndex, startIndex + 9);
   // 填充空数据以确保总数为 9
   while (currentData.length < 9) {
     currentData.push({ id: '', char: '', img: null });
@@ -85,110 +87,62 @@ const displayedFontImgList = computed(() => {
 });
 const isLoading = ref(false); // 控制加载动画的显示
 // 获取备选字体
-const getFontImgList = debounce(async () => {
-  console.log('baseUrl', baseUrl);
-
+const getFontImgList = debounce(async (isRefresh = false) => {
   try {
     isLoading.value = true; // 显示加载动画
+
+    // 检查缓存中是否已有数据
+    const cachedData = allFontImgList.value.find(
+      (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
+    );
+
+    if (cachedData && !isRefresh) {
+      console.log('使用缓存的字体图片数据:', cachedData.glyphs);
+      isLoading.value = false; // 隐藏加载动画
+      return;
+    }
+
+    // 如果没有缓存数据或需要刷新，发起请求
     const response = await axios.get(`${baseUrl}/imgfont/glyph/nchoices`, {
       params: {
-        font_id: selectedFontData.font_id || '',
+        font_id: selectedFontData.fontId || '',
         char: selectedFontData.name || '',
         img_size: selectedFontData.imgSize || 128,
       },
     });
-    // const response = {
-    //   data: {
-    //     data: [
-    //       {
-    //         id: '1',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '2',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '3',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '4',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '5',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '6',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '7',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '8',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '9',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '10',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '11',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '12',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //       {
-    //         id: '13',
-    //         char: 'A',
-    //         img: 'https://www.bing.com/th?id=OVFT.AJjd_jinujYtyPtzrLFroy&pid=News&w=200&h=82&c=14&rs=2&qlt=90',
-    //       },
-    //       {
-    //         id: '14',
-    //         char: 'B',
-    //         img: 'https://th.bing.com/th/id/OIP.pKwUn_NgAYGemurX7g6HFgHaEi?w=145&h=104&c=7&bgcl=1a1aef&r=0&o=6&pid=13.1',
-    //       },
-    //     ],
-    //   },
-    // };
+
     if (response.data && response.data.data) {
-      // 只在数据真正变化时更新
-      if (JSON.stringify(allFontImgList.value) !== JSON.stringify(response.data.data)) {
-        allFontImgList.value = response.data.data.glyphs || [];
-        originalLength.value = allFontImgList.value.length; // 保存原始长度
-        currentPage.value = 1; // 重置为第一页
+      const glyphs = response.data.data.glyphs || [];
+      console.log('获取字体图片数据成功:', glyphs);
+
+      // 更新 allFontImgList
+      const existingIndex = allFontImgList.value.findIndex(
+        (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
+      );
+
+      if (existingIndex !== -1) {
+        // 更新已有数据
+        allFontImgList.value[existingIndex].glyphs = glyphs;
+      } else {
+        // 添加新数据
+        allFontImgList.value.push({
+          fontId: selectedFontData.fontId,
+          char: selectedFontData.name,
+          glyphs,
+        });
       }
-      console.log('获取字体图片列表成功:', allFontImgList.value.length);
-      isLoading.value = false; // 隐藏加载动画
+
+      // 更新会话存储
+      sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList.value));
+      originalLength.value = glyphs.length; // 保存原始长度
+      console.log('长度:', originalLength.value);
+
+      currentPage.value = 1; // 重置为第一页
     } else {
       console.error('接口返回的数据无效:', response);
-      isLoading.value = false; // 隐藏加载动画
     }
   } catch (error) {
     console.error('获取字体图片列表失败:', error);
-    isLoading.value = false; // 隐藏加载动画
   } finally {
     isLoading.value = false; // 隐藏加载动画
   }
@@ -235,24 +189,28 @@ const handleSelectOne = () => {
     return;
   }
   selectedIndex.value = -1;
-  console.log('activeObject', activeObject);
+  // console.log('activeObject', activeObject);
 
   if (activeObject) {
     selectedFontData.width = activeObject.width || 128;
     selectedFontData.height = activeObject.height || 128;
     selectedFontData.type = activeObject.type || '';
     selectedFontData.id = activeObject.id || '';
-    selectedFontData.font_id = activeObject.font_id || '';
+    selectedFontData.fontId = activeObject.fontId || '';
     selectedFontData.name = activeObject.name || '';
     selectedFontData.imgSize = activeObject.imgSize || '';
     selectedFontData.src = activeObject._element?.currentSrc || '';
     extensionType.value = activeObject.extensionType || '';
     type.value = activeObject.type || '';
-    // getFontImgList();
-    allFontImgList.value = []; // 清空当前字体图片列表
+    // 如果会话存储中有对应数据，直接渲染
+    const cachedData = allFontImgList.value.find(
+      (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
+    );
+    // 更新 originalLength 为当前选中文字的 glyphs 总数
+    originalLength.value = cachedData ? cachedData.glyphs.length : 0;
     currentPage.value = 1; // 重置当前页码
   }
-  console.log('selectedFontData', selectedFontData);
+  // console.log('selectedFontData', selectedFontData);
 };
 // 替换图片
 const replaceFontImage = async (index, newFontImg) => {
@@ -267,11 +225,11 @@ const replaceFontImage = async (index, newFontImg) => {
   try {
     console.log('尝试向接口发送验证请求...');
     console.log('glyph_id', newFontImg.id);
-    console.log('font_id', selectedFontData.font_id);
+    console.log('font_id', selectedFontData.fontId);
     console.log('char', selectedFontData.name);
     // 向接口发送 POST 请求
     const response = await axios.post(`${baseUrl}/imgfont/glyph/choice`, {
-      font_id: selectedFontData.font_id,
+      font_id: selectedFontData.fontId,
       char: selectedFontData.name,
       glyph_id: newFontImg.id,
     });
