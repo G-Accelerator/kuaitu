@@ -44,24 +44,23 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
 import useSelect from '@/hooks/select';
-import axios from 'axios';
 import { Spin } from 'view-ui-plus';
 import { Utils } from '@kuaitu/core';
 import { debounce } from 'lodash-es';
+import { fetchFontList, postFontChoice, fetchTextImageData } from '@/api/textImage';
 const { insertImgFile } = Utils;
-const { isOne, canvasEditor } = useSelect();
-const baseUrl = import.meta.env.APP_MYAPIHOST;
+const { fabric, isOne, canvasEditor } = useSelect();
 const selectedFontData = reactive({
   id: '',
   fontId: '',
   name: '',
   src: '',
   imgSize: '',
-  type: '',
-  width: 128,
-  height: 128,
-  scaleX: 1,
-  scaleY: 1,
+  // type: '',
+  // width: 128,
+  // height: 128,
+  // scaleX: 1,
+  // scaleY: 1,
 });
 const extensionType = ref('');
 const isFontImage = computed(() => extensionType.value === 'fontImage'); // 是否为字体图片类型
@@ -101,15 +100,13 @@ const getFontImgList = debounce(async (isRefresh = false) => {
       isLoading.value = false; // 隐藏加载动画
       return;
     }
-
-    // 如果没有缓存数据或需要刷新，发起请求
-    const response = await axios.get(`${baseUrl}/imgfont/glyph/nchoices`, {
-      params: {
-        font_id: selectedFontData.fontId || '',
-        char: selectedFontData.name || '',
-        img_size: selectedFontData.imgSize || 128,
-      },
-    });
+    const params = {
+      font_id: selectedFontData.fontId || '',
+      char: selectedFontData.name || '',
+      img_size: selectedFontData.imgSize || 128,
+    };
+    // 如果没有缓存数据或需要刷新，发起请求获取字体类型数据
+    const response = await fetchFontList(params);
 
     if (response.data && response.data.data) {
       const glyphs = response.data.data.glyphs || [];
@@ -136,7 +133,7 @@ const getFontImgList = debounce(async (isRefresh = false) => {
       sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList.value));
       originalLength.value = glyphs.length; // 保存原始长度
       console.log('长度:', originalLength.value);
-
+      selectedIndex.value = -1; // 重置选中状态
       currentPage.value = 1; // 重置为第一页
     } else {
       console.error('接口返回的数据无效:', response);
@@ -192,12 +189,12 @@ const handleSelectOne = () => {
   // console.log('activeObject', activeObject);
 
   if (activeObject) {
-    selectedFontData.width = activeObject.width || 128;
-    selectedFontData.height = activeObject.height || 128;
-    selectedFontData.type = activeObject.type || '';
+    // selectedFontData.width = activeObject.width || 128;
+    // selectedFontData.height = activeObject.height || 128;
+    // selectedFontData.type = activeObject.type || '';
     selectedFontData.id = activeObject.id || '';
-    selectedFontData.fontId = activeObject.fontId || '';
-    selectedFontData.name = activeObject.name || '';
+    selectedFontData.fontId = activeObject.extension.fontId || '';
+    selectedFontData.name = activeObject.extension.name || '';
     selectedFontData.imgSize = activeObject.imgSize || '';
     selectedFontData.src = activeObject._element?.currentSrc || '';
     extensionType.value = activeObject.extensionType || '';
@@ -212,11 +209,11 @@ const handleSelectOne = () => {
   }
   // console.log('selectedFontData', selectedFontData);
 };
-// 替换图片
+// 替换字体图片(会把整个页面的字体图片都替换成新的)
 const replaceFontImage = async (index, newFontImg) => {
   selectedIndex.value = index;
   const activeObject = canvasEditor.canvas.getActiveObjects()[0];
-  if (!activeObject || activeObject.type !== 'image') {
+  if (!activeObject || type.value !== 'image') {
     console.warn('未选中图片对象，无法替换');
     return;
   }
@@ -228,64 +225,239 @@ const replaceFontImage = async (index, newFontImg) => {
     console.log('font_id', selectedFontData.fontId);
     console.log('char', selectedFontData.name);
     // 向接口发送 POST 请求
-    const response = await axios.post(`${baseUrl}/imgfont/glyph/choice`, {
+    const data = {
       font_id: selectedFontData.fontId,
       char: selectedFontData.name,
       glyph_id: newFontImg.id,
-    });
+    };
+    const response = await postFontChoice(data);
+
     // 检查接口返回的 code 是否为 0
     if (response.data.code !== 0) {
       console.error('接口验证失败，code:', response.data.code);
       Spin.hide();
       return;
     }
-    const imgEl = await insertImgFile(newFontImg.img);
-    const timeout = setTimeout(() => {
-      console.warn('图片加载超时');
-      Spin.hide();
-    }, 10000);
-    activeObject.setSrc(
-      imgEl.src,
-      () => {
-        clearTimeout(timeout);
-        activeObject.set({
-          id: newFontImg.id,
-        });
-        activeObject.set(
-          'scaleX',
-          (selectedFontData.width * selectedFontData.scaleX) / imgEl.width
-        );
-        activeObject.set(
-          'scaleY',
-          (selectedFontData.height * selectedFontData.scaleY) / imgEl.height
-        );
-        // canvasEditor.canvas.renderAll(); // 强制重新渲染画布
-        let originalZoom = canvasEditor.canvas.getZoom(); // 保存当前缩放比例
-        const canvasCenter = canvasEditor.canvas.getCenter(); // 获取画布中心点
-        // 放大一点点
-        canvasEditor.canvas.zoomToPoint(
-          { x: canvasCenter.left, y: canvasCenter.top }, // 以画布中心点为基准
-          originalZoom + 0.0000001 //放大一点点
-        );
-        // // 恢复原来的缩放比例
-        // canvasEditor.canvas.zoomToPoint(
-        //   { x: canvasCenter.left, y: canvasCenter.top },
-        //   originalZoom
-        // );
-        imgEl.remove();
-        Spin.hide();
-      },
-      {
-        crossOrigin: 'anonymous',
-        onError: () => {
-          clearTimeout(timeout);
-          console.error('图片加载失败:', newFontImg.img);
-          imgEl.remove();
-          Spin.hide();
-        },
+    const getAllTextImageObjects = () => {
+      const allObjects = canvasEditor.canvas.getObjects(); // 获取画布中的所有对象
+      const textImageObjects = allObjects.filter((obj) => obj.extensionType === 'textImage'); // 筛选出 extensionType 为 textImage 的对象
+      return textImageObjects;
+    };
+
+    //获取所有 textImage 对象
+    const textImageObjects = getAllTextImageObjects();
+    console.log('画布中所有 textImage 对象:', textImageObjects);
+    // 遍历 textImageObjects，依次重新发请求获取组内数据
+    for (const textImageObject of textImageObjects) {
+      if (!textImageObject.extension.sentence.includes(selectedFontData.name)) {
+        console.log(`跳过组，sentence 不包含选中的字: ${selectedFontData.name}`);
+        continue; // 如果不包含，跳过该组
       }
-    );
-    imgEl.remove();
+      // 构建请求数据，全部按照之前的
+      const postData = {
+        font_id: textImageObject.extension.fontId,
+        chars: textImageObject.extension.sentence,
+        img_size: textImageObject.extension.imgSize,
+        layout: textImageObject.extension.layout,
+        color: textImageObject.extension.color,
+        stroke: textImageObject.extension.stroke,
+      };
+      console.log('替换文字请求数据:', postData);
+      // 调用接口获取数据
+      let response;
+      try {
+        response = await fetchTextImageData(postData);
+      } catch (error) {
+        console.error('接口请求失败:', error);
+        return; // 如果接口请求失败，直接退出
+      }
+      console.log('接口请求结果:', response);
+
+      // 验证接口返回的数据
+      if (!response || !response.data || !response.data.data) {
+        console.error('接口返回的数据无效:', response);
+        return; // 如果数据无效，直接退出
+      }
+      const glyphsData = response.data.data;
+      console.log('接口返回的数据:', glyphsData);
+
+      const { char_glyph_dict, chars, layout_data } = glyphsData;
+      // 创建新的图片文字对象
+      const imageObjects = [];
+      const charsArray = chars.split('');
+      let loadedImages = 0; // 记录已加载的图片数量
+
+      // 保存组的位置信息
+      const { left, top, scaleX, scaleY } = textImageObject;
+
+      // 清空组内的内容
+      const objectsToRemove = textImageObject._objects;
+      objectsToRemove.forEach((obj) => canvasEditor.canvas.remove(obj));
+      textImageObject._objects.length = 0; // 清空组的子对象数组
+      // 根据 chars 动态生成布局数据
+      const filteredLayoutData = charsArray.map((char, index) => {
+        const layout = layout_data[index]; // 按 chars 的顺序取 layout_data
+        return {
+          char,
+          x_offset: layout?.x_offset, // 如果 layout_data 中没有对应数据，动态计算 x_offset
+          y_offset: layout?.y_offset, // 如果 layout_data 中没有对应数据，默认 y_offset 为 0
+          z_index: layout?.z_index, // 如果 layout_data 中没有对应数据，按顺序设置 z_index
+        };
+      });
+
+      // 如果没有字符，直接返回
+      if (charsArray.length === 0) {
+        console.error('没有字符数据可处理');
+        return;
+      }
+      const imageObjectsMap = {}; // 用于存储加载完成的图片对象，按字符索引存储
+
+      filteredLayoutData.forEach((layout, index) => {
+        const charData = char_glyph_dict[layout.char];
+        if (!charData) {
+          console.warn(`字符 "${layout.char}" 没有对应的图片数据`);
+          if (++loadedImages === charsArray.length) {
+            createNewGroup();
+          }
+          return;
+        }
+
+        fabric.Image.fromURL(
+          charData.img,
+          (img) => {
+            console.log(`加载图片: ${layout.char}`, img);
+
+            // 设置图片属性
+            img.set({
+              id: charData.id,
+              left: layout.x_offset,
+              top: layout.y_offset,
+              scaleX: textImageObject.extension.imgSize / img.width, // 根据 imgSize 计算缩放比例
+              scaleY: textImageObject.extension.imgSize / img.height, // 根据 imgSize 计算缩放比例
+              imgSize: textImageObject.extension.imgSize,
+              extension: {
+                fontId: postData.font_id,
+                name: charData.char,
+                imgSize: textImageObject.extension.imgSize,
+              },
+              extensionType: 'fontImage',
+            });
+
+            // 按索引存储图片对象
+            imageObjectsMap[index] = img;
+
+            // 检查是否所有图片都已加载完成
+            if (++loadedImages === charsArray.length) {
+              // 按索引顺序将图片对象添加到 imageObjects
+              imageObjects.length = 0; // 清空数组
+              for (let i = 0; i < charsArray.length; i++) {
+                if (imageObjectsMap[i]) {
+                  imageObjects.push(imageObjectsMap[i]);
+                }
+              }
+              console.log('最终的 imageObjects:', imageObjects);
+              createNewGroup();
+            }
+          },
+          {
+            onError: (e) => {
+              console.error(`加载字符 "${layout.char}" 的图片失败`, e);
+              if (++loadedImages === charsArray.length) {
+                createNewGroup();
+              }
+            },
+          }
+        );
+      });
+      // 创建新组的函数
+      const createNewGroup = () => {
+        // 如果没有有效的图片对象，就不创建组
+        if (imageObjects.length === 0) {
+          console.error('没有有效的图片对象可用于创建组');
+          return;
+        }
+        console.log('imageObjects:', imageObjects);
+
+        const newGroup = new fabric.Group(imageObjects, {
+          left, // 保留原组的位置信息
+          top,
+          scaleX,
+          scaleY, // 保持原组的缩放比例
+          selectable: true,
+          subTargetCheck: false,
+        });
+
+        // 更新组的自定义属性
+        newGroup.set({
+          extension: {
+            fontId: postData.font_id, // 更新字体ID
+            sentence: postData.chars, // 更新句子
+            imgSize: postData.img_size, // 更新图片大小
+            layout: postData.layout, // 更新布局
+            color: postData.color, // 更新字体颜色
+            stroke: postData.stroke, // 更新边框信息
+          },
+          extensionType: 'textImage', // 更新扩展类型
+        });
+        console.log(postData.font_id, 'postData.font_id');
+
+        // 替换画布上的旧组
+        canvasEditor.canvas.remove(textImageObject); // 移除旧组
+        canvasEditor.canvas.add(newGroup);
+        canvasEditor.canvas.renderAll();
+        // Spin.show(); // 显示加载动画
+        // console.log('组内容已成功更新');
+      };
+    }
+    Spin.hide();
+    // 单字替换部分的代码
+    // const imgEl = await insertImgFile(newFontImg.img);
+    // const timeout = setTimeout(() => {
+    //   console.warn('图片加载超时');
+    //   Spin.hide();
+    // }, 10000);
+    // activeObject.setSrc(
+    //   imgEl.src,
+    //   () => {
+    //     clearTimeout(timeout);
+    //     activeObject.set({
+    //       id: newFontImg.id,
+    //     });
+    //     activeObject.set(
+    //       'scaleX',
+    //       (selectedFontData.width * selectedFontData.scaleX) / imgEl.width
+    //     );
+    //     activeObject.set(
+    //       'scaleY',
+    //       (selectedFontData.height * selectedFontData.scaleY) / imgEl.height
+    //     );
+    //     // canvasEditor.canvas.renderAll(); // 强制重新渲染画布
+    //     let originalZoom = canvasEditor.canvas.getZoom(); // 保存当前缩放比例
+    //     const canvasCenter = canvasEditor.canvas.getCenter(); // 获取画布中心点
+    //     // 放大一点点
+    //     canvasEditor.canvas.zoomToPoint(
+    //       { x: canvasCenter.left, y: canvasCenter.top }, // 以画布中心点为基准
+    //       originalZoom + 0.0000001 //放大一点点
+    //     );
+    //     // // 恢复原来的缩放比例
+    //     // canvasEditor.canvas.zoomToPoint(
+    //     //   { x: canvasCenter.left, y: canvasCenter.top },
+    //     //   originalZoom
+    //     // );
+    //     imgEl.remove();
+    //     Spin.hide();
+    //   },
+    //   {
+    //     crossOrigin: 'anonymous',
+    //     onError: () => {
+    //       clearTimeout(timeout);
+    //       console.error('图片加载失败:', newFontImg.img);
+    //       imgEl.remove();
+    //       Spin.hide();
+    //     },
+    //   }
+    // );
+    // imgEl.remove();
   } catch (error) {
     console.error('图片插入失败:', error);
     Spin.hide();

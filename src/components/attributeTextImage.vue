@@ -21,6 +21,30 @@
       </RadioGroup>
     </div>
     <!-- 字体类型与字体大小 -->
+    <!-- <div>
+      <Row :gutter="12">
+        <Col flex="1">
+          <div class="ivu-col__box">
+            <span class="label">字体类型</span>
+            <div class="content">
+              <Select
+                v-model="selectedGroupAttributes.fontId"
+                placeholder="请选择字体类型"
+                not-found-text="获取数据失败"
+                transfer="true"
+              >
+                <Option v-for="item in fontIdList" :value="item.id" :key="item.id" transfer="true">
+                  <div :style="`background-image:url('${item.perview}');`">
+                    {{ !item.perview ? item : '' }}
+                    <span style="display: none">{{ item.name }}</span>
+                  </div>
+                </Option>
+              </Select>
+            </div>
+          </div>
+        </Col>
+      </Row>
+    </div> -->
     <div class="flex-view">
       <div class="flex-item">
         <div class="left font-selector">
@@ -119,15 +143,13 @@ import InputNumber from '@/components/inputNumber';
 import { Spin } from 'view-ui-plus';
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
 import useSelect from '@/hooks/select';
-import axios from 'axios';
-
+import { fetchTextImageData, fetchFontIdList } from '@/api/textImage';
 const { fabric, canvasEditor, isOne, isGroup } = useSelect();
-const baseUrl = import.meta.env.APP_MYAPIHOST;
 // 定义选中组的自定义属性
 const selectedGroupAttributes = reactive({
   fontId: '', // 字体类型ID
   sentence: '', // 输入的文字
-  imgSize: 1, // 图片大小
+  imgSize: 128, // 图片大小
   layout: 0, // 图片排版，0代表横排版，1代表竖排版
   color: 'rgba(0,0,0,1)', // 字体颜色
   stroke: {
@@ -136,16 +158,6 @@ const selectedGroupAttributes = reactive({
     type: '', // 边框类型
   },
 });
-// const text = ref(''); // 输入的文字
-// const imgSize = ref(128); // 图片大小
-// const layout = ref(0); // 图片排版
-// const id = ref(''); // 选择的id
-// const color = ref('rgba(0,0,0,1)'); // 字体颜色
-// const stroke = reactive({
-//   color: 'rgba(0,0,0,0)',
-//   width: 0,
-//   type: '',
-// }); // 边框信息
 // 边框种类
 const strokeDashList = [
   {
@@ -225,12 +237,12 @@ const extensionType = ref('');
 // 定义 isTextImage，判断 extensionType 是否为 textImage
 const isTextImage = computed(() => extensionType.value === 'textImage');
 const selectedObject = ref(null); // 存储当前选中的对象
+// 获取当前选中对象的属性
 const getObjectAttr = () => {
   const activeObject = canvasEditor.canvas.getActiveObject();
   extensionType.value = activeObject?.extensionType || '';
   if (activeObject && activeObject?.extensionType === 'textImage') {
-    const { sentence, imgSize, layout, fontId, color, stroke } = activeObject;
-    // text.value = sentence || '';
+    const { sentence, imgSize, layout, fontId, color, stroke } = activeObject.extension;
     // 将解构的属性赋值到 selectedGroupAttributes
     Object.assign(selectedGroupAttributes, {
       sentence: sentence || '',
@@ -244,25 +256,9 @@ const getObjectAttr = () => {
         type: stroke?.type || '',
       },
     });
-
     console.log('selectedGroupAttributes:', selectedGroupAttributes);
-    // console.log('activeObject', activeObject);
-    // console.log('text.value', text.value);
   }
 };
-// const modelList = ref([]); // 字体类型列表
-// // 获取 modelList 数据
-// const fetchModelList = async () => {
-//   try {
-//     const response = await axios.get(`${baseUrl}/imgfonts`);
-//     // console.log('获取 modelList 数据成功:', response.data);
-
-//     modelList.value = response.data.data;
-//     // console.log('modelList', modelList.value);
-//   } catch (error) {
-//     console.error('获取 modelList 数据失败:', error);
-//   }
-// };
 // 获取字体id数据
 const fontIdList = JSON.parse(sessionStorage.getItem('fontIdList')) || [];
 const getFontIdList = async () => {
@@ -273,11 +269,10 @@ const getFontIdList = async () => {
     // 如果 fontIdList 不存在，重新获取
     console.log('会话存储中没有 fontIdList 数据，重新获取');
     try {
-      const response = await axios.get(`${baseUrl}/imgfonts`);
+      const response = await fetchFontIdList();
       // console.log('获取 modelList 数据成功:', response.data);
       if (!response || !response.data || !response.data.data) {
         console.error('获取 fontIdList 数据失败:', response);
-        Spin.hide(); // 隐藏加载动画
         return; // 如果数据无效，直接退出
       }
       fontIdList.push(...response.data.data);
@@ -331,7 +326,7 @@ const updateGroupContent = async () => {
     // 调用接口获取数据
     let response;
     try {
-      response = await axios.post(`${baseUrl}/imgfont/glyphs`, postData);
+      response = await fetchTextImageData(postData);
     } catch (error) {
       console.error('接口请求失败:', error);
       return; // 如果接口请求失败，直接退出
@@ -391,18 +386,21 @@ const updateGroupContent = async () => {
       fabric.Image.fromURL(
         charData.img,
         (img) => {
-          console.log(`加载图片: ${layout.char}`, img);
+          // console.log(`加载图片: ${layout.char}`, img);
 
           // 设置图片属性
           img.set({
             id: charData.id,
-            fontId: postData.font_id,
-            name: charData.char,
             left: layout.x_offset,
             top: layout.y_offset,
             scaleX: selectedGroupAttributes.imgSize / img.width, // 根据 imgSize 计算缩放比例
             scaleY: selectedGroupAttributes.imgSize / img.height, // 根据 imgSize 计算缩放比例
             imgSize: selectedGroupAttributes.imgSize,
+            extension: {
+              fontId: postData.font_id,
+              name: charData.char,
+              imgSize: selectedGroupAttributes.imgSize,
+            },
             extensionType: 'fontImage',
           });
 
@@ -452,12 +450,14 @@ const updateGroupContent = async () => {
 
       // 更新组的自定义属性
       newGroup.set({
-        sentence: postData.chars, // 更新句子
-        imgSize: postData.img_size, // 更新图片大小
-        layout: postData.layout, // 更新布局
-        fontId: postData.font_id, // 更新字体ID
-        color: postData.color, // 更新字体颜色
-        stroke: postData.stroke, // 更新边框信息
+        extension: {
+          fontId: postData.font_id, // 更新字体ID
+          sentence: postData.chars, // 更新句子
+          imgSize: postData.img_size, // 更新图片大小
+          layout: postData.layout, // 更新布局
+          color: postData.color, // 更新字体颜色
+          stroke: postData.stroke, // 更新边框信息
+        },
         extensionType: 'textImage', // 更新扩展类型
       });
       console.log(postData.font_id, 'postData.font_id');
@@ -478,8 +478,7 @@ const updateGroupContent = async () => {
   }
 };
 onMounted(() => {
-  // 获取字体数据
-  getObjectAttr();
+  getObjectAttr(); // 获取当前选中对象的属性
   getFontIdList(); // 获取字体ID列表
   console.log('获取 fontIdList 数据:', fontIdList);
 
@@ -505,6 +504,24 @@ onBeforeUnmount(() => {
 
   // console.log('组件已卸载，资源已清理');
 });
+// 扩展 fabric.Object 的 toObject 方法，解决复制时无法复制自定义属性的问题
+// fabric.Object.prototype.toObject = (function (toObject) {
+//   return function () {
+//     const baseObject = toObject.call(this);
+//     if (this.extensionType === 'textImage') {
+//       return fabric.util.object.extend(baseObject, {
+//         extensionType: this.extensionType,
+//         sentence: this.sentence,
+//         imgSize: this.imgSize,
+//         layout: this.layout,
+//         fontId: this.fontId,
+//         color: this.color,
+//         stroke: this.stroke,
+//       });
+//     }
+//     return baseObject; // 对于其他类型的对象，不添加自定义属性
+//   };
+// })(fabric.Object.prototype.toObject);
 </script>
 
 <style lang="less" scoped>
@@ -534,12 +551,18 @@ onBeforeUnmount(() => {
   }
   .content {
     flex: 1;
-    :deep(.--input),
-    :deep(.ivu-select-selection) {
-      background-color: transparent;
-      border: none !important;
-      box-shadow: none !important;
-    }
+    // :deep(.--input),
+    // :deep(.ivu-select-selection) {
+    //   background-color: transparent;
+    //   border: none !important;
+    //   box-shadow: none !important;
+    // }
+    // :deep(.ivu-select-item) {
+    //   padding: 1px 4px;
+    // }
+    // :deep(.ivu-select) {
+    //   width: 140px;
+    // }
   }
 }
 .font-selector {

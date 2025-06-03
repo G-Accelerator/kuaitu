@@ -136,9 +136,9 @@ import barCodeIcon from '@/assets/icon/tools/barCode.svg';
 
 import { useI18n } from 'vue-i18n';
 import { Divider } from 'view-ui-plus';
-import axios from 'axios';
 import { Spin } from 'view-ui-plus';
-const baseUrl = import.meta.env.APP_MYAPIHOST;
+import { fetchTextImageData, fetchFontIdList } from '@/api/textImage';
+
 const LINE_TYPE = {
   polygon: 'polygon',
   freeDraw: 'freeDraw',
@@ -423,7 +423,7 @@ const addTextImages = async () => {
     // 如果 fontIdList 不存在，重新获取
     console.log('会话存储中没有 fontIdList 数据，重新获取');
     try {
-      const response = await axios.get(`${baseUrl}/imgfonts`);
+      const response = await fetchFontIdList();
       // console.log('获取 modelList 数据成功:', response.data);
       if (!response || !response.data || !response.data.data) {
         console.error('获取 fontIdList 数据失败:', response);
@@ -436,6 +436,8 @@ const addTextImages = async () => {
       sessionStorage.setItem('fontIdList', JSON.stringify(fontIdList));
     } catch (error) {
       console.error('获取fontIdList 数据失败:', error);
+      Spin.hide(); // 隐藏加载动画
+      return; // 如果数据无效，直接退出
     }
   }
 
@@ -456,7 +458,7 @@ const addTextImages = async () => {
   // 调用接口获取数据
   let response;
   try {
-    response = await axios.post(`${baseUrl}/imgfont/glyphs`, postData);
+    response = await fetchTextImageData(postData);
   } catch (error) {
     console.error('接口请求失败:', error);
     Spin.hide(); // 隐藏加载动画
@@ -495,12 +497,15 @@ const addTextImages = async () => {
       fabric.Image.fromURL(imgElement.src, (img) => {
         img.set({
           id: charData.id,
-          fontId: fontIdList[0].id, // 字体ID
-          name: charData.char,
           left: layout.x_offset, // 使用动态生成的 x_offset
           top: layout.y_offset, // 使用动态生成的 y_offset
           scaleX: 1, // 缩放比例
           scaleY: 1, // 缩放比例
+          extension: {
+            fontId: fontIdList[0].id, // 字体ID,
+            imgSize: 128, // 图片大小
+            name: charData.char, // 图片对应的字符
+          },
           extensionType: 'fontImage', // 扩展类型
         });
         // 确保属性已正确设置
@@ -520,17 +525,19 @@ const addTextImages = async () => {
           });
           // // 为组添加自定义属性;
           group.set({
-            sentence: chars, // 图片文字组成的句子
-            imgSize: 128, // 图片大小
-            layout: 0, // 布局方式
-            fontId: fontIdList[0].id, // 字体ID
-            color: 'rgba(0,0,0,1)', // 文字颜色
-            extensionType: 'textImage', // 添加 extensionType 属性
-            stroke: {
-              color: 'rgba(0,0,0,0)', // 边框颜色
-              width: 0, // 边框宽度
-              type: '', // 边框类型
+            extension: {
+              fontId: fontIdList[0].id, // 字体ID
+              sentence: chars, // 图片文字组成的句子
+              imgSize: 128, // 图片大小
+              layout: 0, // 布局方式
+              color: 'rgba(0,0,0,1)', // 文字颜色
+              stroke: {
+                color: 'rgba(0,0,0,0)', // 边框颜色
+                width: 0, // 边框宽度
+                type: '', // 边框类型
+              },
             },
+            extensionType: 'textImage', // 添加 extensionType 属性
           });
           // 添加到画布
           console.log('group', group);
