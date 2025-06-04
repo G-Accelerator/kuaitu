@@ -21,20 +21,19 @@
       </RadioGroup>
     </div>
     <!-- 字体类型与字体大小 -->
-    <!-- <div>
+    <div>
       <Row :gutter="12">
         <Col flex="1">
           <div class="ivu-col__box">
             <span class="label">字体类型</span>
-            <div class="content">
+            <div class="content font-selector">
               <Select
                 v-model="selectedGroupAttributes.fontId"
                 placeholder="请选择字体类型"
                 not-found-text="获取数据失败"
-                transfer="true"
               >
-                <Option v-for="item in fontIdList" :value="item.id" :key="item.id" transfer="true">
-                  <div :style="`background-image:url('${item.perview}');`">
+                <Option v-for="item in fontIdList" :value="item.id" :key="item.id">
+                  <div class="font-item" :style="`background-image:url('${item.perview}');`">
                     {{ !item.perview ? item : '' }}
                     <span style="display: none">{{ item.name }}</span>
                   </div>
@@ -44,10 +43,10 @@
           </div>
         </Col>
       </Row>
-    </div> -->
-    <div class="flex-view">
+    </div>
+    <!-- <div class="flex-view">
       <div class="flex-item">
-        <div class="left font-selector">
+        <div class="font-selector">
           <Select
             v-model="selectedGroupAttributes.fontId"
             placeholder="请选择字体类型"
@@ -69,7 +68,7 @@
           ></InputNumber>
         </div>
       </div>
-    </div>
+    </div> -->
     <!-- 字体颜色 -->
     <div>
       <Row :gutter="12">
@@ -566,17 +565,17 @@ onBeforeUnmount(() => {
   }
 }
 .font-selector {
-  max-width: calc(100% - 120px); /* 限制最大宽度，避免挤占 .right 的空间 */
+  // max-width: calc(100% - 120px); /* 限制最大宽度，避免挤占 .right 的空间 */
   :deep(.ivu-select-item) {
     padding: 1px 4px;
   }
   :deep(.ivu-select) {
-    width: 140px;
+    width: 206px;
   }
 
   .font-item {
     height: 40px;
-    width: 280px;
+    // width: 280px;
     background-size: auto 35px;
     background-repeat: no-repeat;
   }

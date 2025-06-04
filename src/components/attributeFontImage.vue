@@ -4,7 +4,7 @@
       <h4>单个图片文字属性</h4>
     </Divider>
     <div class="fontImgList">
-      <Spin show="1" fix size="large" v-if="isLoading"></Spin>
+      <!-- <Spin show="1" fix size="large" v-if="isLoading"></Spin> -->
 
       <div class="grid">
         <div
@@ -26,9 +26,7 @@
     </div>
 
     <div class="page">
-      <Button type="small" @click="getFontImgList" :disabled="isLoading">
-        {{ isLoading ? '加载中...' : '生成一批' }}
-      </Button>
+      <Button type="small" @click="getFontImgList">生成一批</Button>
       <Page
         v-model="currentPage"
         :total="originalLength"
@@ -84,12 +82,11 @@ const displayedFontImgList = computed(() => {
   }
   return currentData;
 });
-const isLoading = ref(false); // 控制加载动画的显示
+// const isLoading = ref(false); // 控制加载动画的显示
 // 获取备选字体
 const getFontImgList = debounce(async (isRefresh = false) => {
   try {
-    isLoading.value = true; // 显示加载动画
-
+    // isLoading.value = true; // 显示加载动画
     // 检查缓存中是否已有数据
     const cachedData = allFontImgList.value.find(
       (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
@@ -97,7 +94,7 @@ const getFontImgList = debounce(async (isRefresh = false) => {
 
     if (cachedData && !isRefresh) {
       console.log('使用缓存的字体图片数据:', cachedData.glyphs);
-      isLoading.value = false; // 隐藏加载动画
+      // isLoading.value = false; // 隐藏加载动画
       return;
     }
     const params = {
@@ -105,8 +102,11 @@ const getFontImgList = debounce(async (isRefresh = false) => {
       char: selectedFontData.name || '',
       img_size: selectedFontData.imgSize || 128,
     };
+    Spin.show(); // 显示加载动画
+
     // 如果没有缓存数据或需要刷新，发起请求获取字体类型数据
     const response = await fetchFontList(params);
+    Spin.hide(); // 隐藏加载动画
 
     if (response.data && response.data.data) {
       const glyphs = response.data.data.glyphs || [];
@@ -140,8 +140,10 @@ const getFontImgList = debounce(async (isRefresh = false) => {
     }
   } catch (error) {
     console.error('获取字体图片列表失败:', error);
+    Spin.hide(); // 隐藏加载动画
   } finally {
-    isLoading.value = false; // 隐藏加载动画
+    // isLoading.value = false; // 隐藏加载动画
+    Spin.hide(); // 隐藏加载动画
   }
 }, 300);
 // // 初始化数据
@@ -193,8 +195,8 @@ const handleSelectOne = () => {
     // selectedFontData.height = activeObject.height || 128;
     // selectedFontData.type = activeObject.type || '';
     selectedFontData.id = activeObject.id || '';
-    selectedFontData.fontId = activeObject.extension.fontId || '';
-    selectedFontData.name = activeObject.extension.name || '';
+    selectedFontData.fontId = activeObject.extension?.fontId || '';
+    selectedFontData.name = activeObject.extension?.name || '';
     selectedFontData.imgSize = activeObject.imgSize || '';
     selectedFontData.src = activeObject._element?.currentSrc || '';
     extensionType.value = activeObject.extensionType || '';
