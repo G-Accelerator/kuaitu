@@ -20,7 +20,7 @@ export const fetchFontIdList = () => {
   return axios.get(`${baseUrl}/imgfonts`);
 };
 // 获取备选字形列表
-export const fetchFontList = (params: { font_id: string; char: string; img_size: number }) => {
+export const fetchFontList = (params: { font_id: string; chars: string; img_size: number }) => {
   return axios.get(`${baseUrl}/imgfont/glyph/nchoices`, { params });
 };
 // 提交选择的字形

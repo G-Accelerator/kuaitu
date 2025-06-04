@@ -139,7 +139,7 @@
 
 <script setup>
 import InputNumber from '@/components/inputNumber';
-import { Spin } from 'view-ui-plus';
+import { Spin, Message } from 'view-ui-plus';
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue';
 import useSelect from '@/hooks/select';
 import { fetchTextImageData, fetchFontIdList } from '@/api/textImage';
@@ -279,6 +279,7 @@ const getFontIdList = async () => {
       // 将 fontIdList 存储到会话存储中
       sessionStorage.setItem('fontIdList', JSON.stringify(fontIdList));
     } catch (error) {
+      Message.error('获取fontIdList 数据失败');
       console.error('获取fontIdList 数据失败:', error);
     }
   }
@@ -327,6 +328,7 @@ const updateGroupContent = async () => {
     try {
       response = await fetchTextImageData(postData);
     } catch (error) {
+      Message.error('接口请求失败');
       console.error('接口请求失败:', error);
       return; // 如果接口请求失败，直接退出
     }
@@ -470,6 +472,7 @@ const updateGroupContent = async () => {
       // console.log('组内容已成功更新');
     };
   } catch (error) {
+    Message.error('更新组内容失败');
     console.error('更新组内容失败:', error);
   } finally {
     isUpdating = false; // 释放状态锁

@@ -74,6 +74,11 @@
     </div>
     <Divider plain orientation="left">{{ $t('img_fonts') }}</Divider>
     <div class="tool-box"><span @click="addTextImages">图片文字</span></div>
+    <div class="tool-box">
+      <Button style="margin: 5px auto; width: 100%" @click="getAllFontImgList">
+        生成所有备选字
+      </Button>
+    </div>
     <!-- <div class="tool-box">
       <span>
         <Input
@@ -136,8 +141,8 @@ import barCodeIcon from '@/assets/icon/tools/barCode.svg';
 
 import { useI18n } from 'vue-i18n';
 import { Divider } from 'view-ui-plus';
-import { Spin } from 'view-ui-plus';
-import { fetchTextImageData, fetchFontIdList } from '@/api/textImage';
+import { Spin, Message } from 'view-ui-plus';
+import { fetchTextImageData, fetchFontIdList, fetchFontList } from '@/api/textImage';
 
 const LINE_TYPE = {
   polygon: 'polygon',
@@ -437,6 +442,7 @@ const addTextImages = async () => {
     } catch (error) {
       console.error('获取fontIdList 数据失败:', error);
       Spin.hide(); // 隐藏加载动画
+      Message.error('操作失败');
       return; // 如果数据无效，直接退出
     }
   }
@@ -462,6 +468,7 @@ const addTextImages = async () => {
   } catch (error) {
     console.error('接口请求失败:', error);
     Spin.hide(); // 隐藏加载动画
+    Message.error('操作失败');
     return; // 如果接口请求失败，直接退出
   }
   console.log('接口返回的数据:', response);
@@ -548,6 +555,101 @@ const addTextImages = async () => {
       });
     };
   });
+};
+// 获取全部备选字体
+const getAllFontImgList = async () => {
+  Spin.show();
+  const getAllTextImageObjects = () => {
+    const allObjects = canvasEditor.canvas.getObjects(); // 获取画布中的所有对象
+    const textImageObjects = allObjects.filter((obj) => obj.extensionType === 'textImage'); // 筛选出 extensionType 为 textImage 的对象
+    return textImageObjects;
+  };
+
+  //获取所有 textImage 对象
+  const textImageObjects = getAllTextImageObjects();
+  console.log('获取到的 textImage 对象:', textImageObjects);
+
+  if (textImageObjects.length == 0) {
+    Spin.hide();
+    return;
+  }
+  // 按 fontId 去重并合并 sentence
+  const fontIdMap = new Map();
+  textImageObjects.forEach((obj) => {
+    const { fontId, sentence } = obj.extension || {};
+    if (!fontId || !sentence) return; // 跳过无效数据
+    if (fontIdMap.has(fontId)) {
+      // 合并 sentence，去重字符
+      const existingSentence = fontIdMap.get(fontId);
+      const mergedSentence = Array.from(new Set(existingSentence + sentence)).join('');
+      fontIdMap.set(fontId, mergedSentence);
+    } else {
+      fontIdMap.set(fontId, sentence);
+    }
+  });
+
+  console.log('按 fontId 合并后的数据:', fontIdMap);
+  // 遍历 fontIdMap，依次请求数据
+  for (const [fontId, sentence] of fontIdMap.entries()) {
+    const params = {
+      font_id: fontId,
+      chars: sentence,
+      img_size: 128, // 示例图片大小
+    };
+
+    try {
+      console.log('请求参数:', params);
+      const response = await fetchFontList(params);
+      console.log(`fontId: ${fontId} 的请求结果:`, response.data);
+
+      if (response.data && response.data.code === 0) {
+        const glyphsData = response.data.data || {};
+
+        // 遍历每个字符，更新会话存储
+        for (const [char, glyphs] of Object.entries(glyphsData)) {
+          const formattedGlyphs = glyphs.map((item) => ({
+            id: item.id,
+            char: item.char,
+            img: item.img,
+          }));
+
+          // 更新会话存储
+          updateSessionStorage(fontId, char, formattedGlyphs);
+        }
+      }
+    } catch (error) {
+      console.error(`fontId: ${fontId} 的请求失败:`, error);
+    }
+  }
+  Spin.hide(); // 隐藏加载动画
+};
+// 更新会话存储
+const updateSessionStorage = (fontId, char, glyphs) => {
+  const allFontImgList = JSON.parse(sessionStorage.getItem('allFontImgList')) || [];
+  const fontIndex = allFontImgList.findIndex((item) => item.fontId === fontId);
+
+  if (fontIndex !== -1) {
+    // 如果 fontId 已存在
+    const fontData = allFontImgList[fontIndex];
+    const charIndex = fontData.allList.findIndex((item) => item.char === char);
+
+    if (charIndex !== -1) {
+      // 如果 char 已存在，更新 glyphs
+      fontData.allList[charIndex].glyphs = glyphs;
+    } else {
+      // 如果 char 不存在，添加新 char
+      fontData.allList.push({ char, glyphs });
+    }
+  } else {
+    // 如果 fontId 不存在，添加新 fontId 和 char
+    allFontImgList.push({
+      fontId,
+      allList: [{ char, glyphs }],
+    });
+  }
+
+  sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList));
+  console.log('更新后的 allFontImgList:', allFontImgList);
 };
 // 退出绘制状态
 const cancelDraw = () => {

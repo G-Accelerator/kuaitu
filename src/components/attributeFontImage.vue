@@ -42,10 +42,12 @@
 <script setup>
 import { ref, reactive, computed } from 'vue';
 import useSelect from '@/hooks/select';
-import { Spin } from 'view-ui-plus';
+import { Spin, Message } from 'view-ui-plus';
 import { Utils } from '@kuaitu/core';
 import { debounce } from 'lodash-es';
 import { fetchFontList, postFontChoice, fetchTextImageData } from '@/api/textImage';
+// import { watchEffect } from 'vue';
+
 const { insertImgFile } = Utils;
 const { fabric, isOne, canvasEditor } = useSelect();
 const selectedFontData = reactive({
@@ -64,81 +66,62 @@ const extensionType = ref('');
 const isFontImage = computed(() => extensionType.value === 'fontImage'); // 是否为字体图片类型
 const selectedIndex = ref(-1);
 const type = ref('');
-
-// 所有字体图片数据
-const allFontImgList = ref(JSON.parse(sessionStorage.getItem('allFontImgList')) || []); // [{ fontId: '', char: '', glyphs: [] }]
 const originalLength = ref(0); // 用于保存原始长度
-// 当前显示的字体图片数据（基于分页）
+const selectedFontImgList = ref([]); // 用于保存选中的字体图片列表
 const displayedFontImgList = computed(() => {
-  const currentFontData = allFontImgList.value.find(
-    (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
-  );
-  const glyphs = currentFontData ? currentFontData.glyphs : [];
-  const startIndex = (currentPage.value - 1) * 9;
-  const currentData = glyphs.slice(startIndex, startIndex + 9);
-  // 填充空数据以确保总数为 9
-  while (currentData.length < 9) {
-    currentData.push({ id: '', char: '', img: null });
-  }
-  return currentData;
-});
-// const isLoading = ref(false); // 控制加载动画的显示
-// 获取备选字体
-const getFontImgList = debounce(async (isRefresh = false) => {
-  try {
-    // isLoading.value = true; // 显示加载动画
-    // 检查缓存中是否已有数据
-    const cachedData = allFontImgList.value.find(
-      (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
-    );
+  // 获取 selectedFontImgList 的第一个 key 的数组
+  const fontImgArray = Object.values(selectedFontImgList.value)[0] || [];
 
-    if (cachedData && !isRefresh) {
-      console.log('使用缓存的字体图片数据:', cachedData.glyphs);
-      // isLoading.value = false; // 隐藏加载动画
-      return;
-    }
+  // 每页显示的条数
+  const pageSize = 9;
+
+  // 计算当前页的起始索引和结束索引
+  const startIndex = (currentPage.value - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+
+  // 获取当前页的数据
+  const currentPageData = fontImgArray.slice(startIndex, endIndex);
+
+  // 如果数据不足 9 个，填充空数据
+  while (currentPageData.length < pageSize) {
+    currentPageData.push({ id: '', char: '无数据', img: null }); // 填充空数据
+  }
+
+  return currentPageData;
+}); // 用于保存当前页显示的字体图片列表
+// 获取备选字体
+const getFontImgList = debounce(async () => {
+  try {
     const params = {
       font_id: selectedFontData.fontId || '',
-      char: selectedFontData.name || '',
+      chars: selectedFontData.name || '',
       img_size: selectedFontData.imgSize || 128,
     };
     Spin.show(); // 显示加载动画
 
     // 如果没有缓存数据或需要刷新，发起请求获取字体类型数据
     const response = await fetchFontList(params);
+    console.log('huiying', response);
+
     Spin.hide(); // 隐藏加载动画
 
-    if (response.data && response.data.data) {
-      const glyphs = response.data.data.glyphs || [];
-      console.log('获取字体图片数据成功:', glyphs);
-
-      // 更新 allFontImgList
-      const existingIndex = allFontImgList.value.findIndex(
-        (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
-      );
-
-      if (existingIndex !== -1) {
-        // 更新已有数据
-        allFontImgList.value[existingIndex].glyphs = glyphs;
-      } else {
-        // 添加新数据
-        allFontImgList.value.push({
-          fontId: selectedFontData.fontId,
-          char: selectedFontData.name,
-          glyphs,
-        });
-      }
-
+    if (response.data && response.data.code === 0) {
+      selectedFontImgList.value = response.data.data || {};
+      console.log('获取字体图片数据:', selectedFontImgList.value);
       // 更新会话存储
-      sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList.value));
-      originalLength.value = glyphs.length; // 保存原始长度
-      console.log('长度:', originalLength.value);
+      updateSessionStorage(
+        selectedFontData.fontId,
+        selectedFontData.name,
+        Object.values(selectedFontImgList.value)[0]
+      );
+      originalLength.value = Object.values(selectedFontImgList.value)[0]?.length || 0; // 更新原始长度
       selectedIndex.value = -1; // 重置选中状态
       currentPage.value = 1; // 重置为第一页
     } else {
       console.error('接口返回的数据无效:', response);
     }
   } catch (error) {
+    Message.error('获取字体图片列表失败');
     console.error('获取字体图片列表失败:', error);
     Spin.hide(); // 隐藏加载动画
   } finally {
@@ -180,20 +163,40 @@ const loadDataDebounced = debounce((page) => {
   currentPage.value = page;
   // 加载更多数据的逻辑
 }, 300);
+const getFontImgListByFontIdAndChar = (fontId, char) => {
+  // 从 allFontImgList 中查找对应的 fontId
+  const allFontImgList = JSON.parse(sessionStorage.getItem('allFontImgList')) || [];
+  const fontData = allFontImgList.find((item) => item.fontId === fontId);
+
+  if (!fontData) {
+    console.warn(`未找到 fontId 为 "${fontId}" 的数据`);
+    return [];
+  }
+
+  // 从 fontData.allList 中查找对应的 char
+  const charData = fontData.allList.find((item) => item.char === char);
+
+  if (!charData) {
+    console.warn(`未找到 char 为 "${char}" 的数据`);
+    return [];
+  }
+  console.log('筛选结果:', { [char]: charData.glyphs });
+
+  // 返回 key:value 形式的结果
+  return { [char]: charData.glyphs || [] };
+};
 // 获取选中的文字图片信息
 const handleSelectOne = () => {
+  // allFontImgList.value = JSON.parse(sessionStorage.getItem('allFontImgList')) || [];
+  // console.log('所有文字图', allFontImgList.value);
+
   const activeObject = canvasEditor.canvas.getActiveObjects()[0];
   if (!activeObject) {
     console.warn('未选中任何对象');
     return;
   }
   selectedIndex.value = -1;
-  // console.log('activeObject', activeObject);
-
-  if (activeObject) {
-    // selectedFontData.width = activeObject.width || 128;
-    // selectedFontData.height = activeObject.height || 128;
-    // selectedFontData.type = activeObject.type || '';
+  if (activeObject || activeObject.extensionType === 'fontImage') {
     selectedFontData.id = activeObject.id || '';
     selectedFontData.fontId = activeObject.extension?.fontId || '';
     selectedFontData.name = activeObject.extension?.name || '';
@@ -201,15 +204,13 @@ const handleSelectOne = () => {
     selectedFontData.src = activeObject._element?.currentSrc || '';
     extensionType.value = activeObject.extensionType || '';
     type.value = activeObject.type || '';
-    // 如果会话存储中有对应数据，直接渲染
-    const cachedData = allFontImgList.value.find(
-      (item) => item.fontId === selectedFontData.fontId && item.char === selectedFontData.name
-    );
-    // 更新 originalLength 为当前选中文字的 glyphs 总数
-    originalLength.value = cachedData ? cachedData.glyphs.length : 0;
+    //从allFontImgList中获取数据，没有则为空
+    selectedFontImgList.value =
+      getFontImgListByFontIdAndChar(selectedFontData.fontId, selectedFontData.name) || [];
     currentPage.value = 1; // 重置当前页码
+    originalLength.value = Object.values(selectedFontImgList.value)[0]?.length || 0;
+    canvasEditor.canvas.renderAll();
   }
-  // console.log('selectedFontData', selectedFontData);
 };
 // 替换字体图片(会把整个页面的字体图片都替换成新的)
 const replaceFontImage = async (index, newFontImg) => {
@@ -222,10 +223,6 @@ const replaceFontImage = async (index, newFontImg) => {
   Spin.show();
   console.log('开始替换图片:', newFontImg.img);
   try {
-    console.log('尝试向接口发送验证请求...');
-    console.log('glyph_id', newFontImg.id);
-    console.log('font_id', selectedFontData.fontId);
-    console.log('char', selectedFontData.name);
     // 向接口发送 POST 请求
     const data = {
       font_id: selectedFontData.fontId,
@@ -251,8 +248,13 @@ const replaceFontImage = async (index, newFontImg) => {
     console.log('画布中所有 textImage 对象:', textImageObjects);
     // 遍历 textImageObjects，依次重新发请求获取组内数据
     for (const textImageObject of textImageObjects) {
-      if (!textImageObject.extension.sentence.includes(selectedFontData.name)) {
-        console.log(`跳过组，sentence 不包含选中的字: ${selectedFontData.name}`);
+      if (
+        textImageObject.extension.fontId !== selectedFontData.fontId ||
+        !textImageObject.extension.sentence.includes(selectedFontData.name)
+      ) {
+        console.log(
+          `跳过组，原因：sentence 不包含选中的字 "${selectedFontData.name}" 或 fontId 不匹配`
+        );
         continue; // 如果不包含，跳过该组
       }
       // 构建请求数据，全部按照之前的
@@ -270,6 +272,7 @@ const replaceFontImage = async (index, newFontImg) => {
       try {
         response = await fetchTextImageData(postData);
       } catch (error) {
+        Message.error('接口请求失败');
         console.error('接口请求失败:', error);
         return; // 如果接口请求失败，直接退出
       }
@@ -461,15 +464,43 @@ const replaceFontImage = async (index, newFontImg) => {
     // );
     // imgEl.remove();
   } catch (error) {
+    Message.error('图片插入失败');
     console.error('图片插入失败:', error);
     Spin.hide();
   }
+};
+const updateSessionStorage = (fontId, char, glyphs) => {
+  const allFontImgList = JSON.parse(sessionStorage.getItem('allFontImgList')) || [];
+  const fontIndex = allFontImgList.findIndex((item) => item.fontId === fontId);
+  if (fontIndex !== -1) {
+    // 如果 fontId 已存在
+    const fontData = allFontImgList[fontIndex];
+    const charIndex = fontData.allList.findIndex((item) => item.char === char);
+
+    if (charIndex !== -1) {
+      // 如果 char 已存在，更新 glyphs
+      fontData.allList[charIndex].glyphs = glyphs;
+    } else {
+      // 如果 char 不存在，添加新 char
+      fontData.allList.push({ char, glyphs });
+    }
+  } else {
+    // 如果 fontId 不存在，添加新 fontId 和 char
+    allFontImgList.push({
+      fontId,
+      allList: [{ char, glyphs }],
+    });
+  }
+
+  sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList));
+  console.log('更新后的 allFontImgList:', allFontImgList);
 };
 onMounted(() => {
   canvasEditor.on('selectOne', handleSelectOne);
   selectedIndex.value = -1;
 });
 onBeforeUnmount(() => {
+  console.log('组件卸载，移除事件监听');
   canvasEditor.off('selectOne', handleSelectOne);
 });
 </script>
