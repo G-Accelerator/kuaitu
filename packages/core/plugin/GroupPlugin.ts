@@ -60,7 +60,7 @@ class GroupPlugin implements IPluginTempl {
       return [{ text: '组合', hotkey: 'Ctrl+V', disabled: false, onclick: () => this.group() }];
     }
 
-    if (isGroup(activeObject)) {
+    if (isGroup(activeObject) && activeObject.extensionType !== 'textImage') {
       return [
         { text: '拆分组合', hotkey: 'Ctrl+V', disabled: false, onclick: () => this.unGroup() },
       ];
