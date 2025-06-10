@@ -442,7 +442,7 @@ const addTextImages = async () => {
     } catch (error) {
       console.error('获取fontIdList 数据失败:', error);
       Spin.hide(); // 隐藏加载动画
-      Message.error('操作失败');
+      Message.error('操作失败：网络异常');
       return; // 如果数据无效，直接退出
     }
   }
@@ -468,7 +468,7 @@ const addTextImages = async () => {
   } catch (error) {
     console.error('接口请求失败:', error);
     Spin.hide(); // 隐藏加载动画
-    Message.error('操作失败');
+    Message.error('操作失败:网络异常');
     return; // 如果接口请求失败，直接退出
   }
   console.log('接口返回的数据:', response);
@@ -571,6 +571,7 @@ const getAllFontImgList = async () => {
 
   if (textImageObjects.length == 0) {
     Spin.hide();
+    Message.error('获取失败：没有图片文字对象');
     return;
   }
   // 按 fontId 去重并合并 sentence
@@ -619,6 +620,7 @@ const getAllFontImgList = async () => {
       }
     } catch (error) {
       console.error(`fontId: ${fontId} 的请求失败:`, error);
+      Message.error('操作失败：网络异常');
     }
   }
   Spin.hide(); // 隐藏加载动画
@@ -650,7 +652,17 @@ const updateSessionStorage = (fontId, char, glyphs) => {
 
   sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList));
   console.log('更新后的 allFontImgList:', allFontImgList);
+  const activeObject = canvasEditor.canvas.getActiveObject(); // 备份当前选中的对象
+  canvasEditor.canvas.discardActiveObject(); // 取消画布中的选中对象
+  canvasEditor.canvas.renderAll(); // 强制重新渲染画布
+  // 重新选中之前的对象------为了触发attributeFontImgage组件的数据更新
+  if (activeObject) {
+    canvasEditor.canvas.setActiveObject(activeObject);
+    canvasEditor.canvas.renderAll(); // 再次渲染画布
+    console.log('重新选中对象:', activeObject);
+  }
 };
+
 // 退出绘制状态
 const cancelDraw = () => {
   if (!state.isDrawingLineMode) return;

@@ -46,8 +46,6 @@ import { Spin, Message } from 'view-ui-plus';
 import { Utils } from '@kuaitu/core';
 import { debounce } from 'lodash-es';
 import { fetchFontList, postFontChoice, fetchTextImageData } from '@/api/textImage';
-// import { watchEffect } from 'vue';
-
 const { insertImgFile } = Utils;
 const { fabric, isOne, canvasEditor } = useSelect();
 const selectedFontData = reactive({
@@ -89,6 +87,7 @@ const displayedFontImgList = computed(() => {
 
   return currentPageData;
 }); // 用于保存当前页显示的字体图片列表
+
 // 获取备选字体
 const getFontImgList = debounce(async () => {
   try {
@@ -121,7 +120,7 @@ const getFontImgList = debounce(async () => {
       console.error('接口返回的数据无效:', response);
     }
   } catch (error) {
-    Message.error('获取字体图片列表失败');
+    Message.error('获取字体图片列表失败：网络异常');
     console.error('获取字体图片列表失败:', error);
     Spin.hide(); // 隐藏加载动画
   } finally {
@@ -464,7 +463,7 @@ const replaceFontImage = async (index, newFontImg) => {
     // );
     // imgEl.remove();
   } catch (error) {
-    Message.error('图片插入失败');
+    Message.error('图片插入失败：网络异常');
     console.error('图片插入失败:', error);
     Spin.hide();
   }
@@ -495,6 +494,7 @@ const updateSessionStorage = (fontId, char, glyphs) => {
   sessionStorage.setItem('allFontImgList', JSON.stringify(allFontImgList));
   console.log('更新后的 allFontImgList:', allFontImgList);
 };
+
 onMounted(() => {
   canvasEditor.on('selectOne', handleSelectOne);
   selectedIndex.value = -1;
