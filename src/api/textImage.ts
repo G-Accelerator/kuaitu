@@ -27,3 +27,15 @@ export const fetchFontList = (params: { font_id: string; chars: string; img_size
 export const postFontChoice = (data: { font_id: string; char: string; glyph_id: string }) => {
   return axios.post(`${baseUrl}/imgfont/glyph/choice`, data);
 };
+// 保存快照
+export const postSnapshot = (data: {
+  temp_id: number;
+  img_base64: string;
+  json_config: string;
+}) => {
+  return axios.post(`${baseUrl}/snapshot/save`, data);
+};
+// 获取最近的快照列表
+export const fetchSnapshotList = (params: { page_size: number; page_index: number }) => {
+  return axios.get(`${baseUrl}/snapshot/history`, { params });
+};

@@ -238,6 +238,8 @@ class ServersPlugin implements IPluginTempl {
 
   async saveJson() {
     const dataUrl = this.getJson();
+    console.log('saveJson', dataUrl);
+
     // 把文本text转为textgroup，让导入可以编辑
     await transformText(dataUrl.objects);
     const fileStr = `data:text/json;charset=utf-8,${encodeURIComponent(
