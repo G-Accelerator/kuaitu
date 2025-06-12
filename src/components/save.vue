@@ -31,7 +31,12 @@
         </DropdownMenu>
       </template>
     </Dropdown>
-    <Modal v-model="uploadRecordsVisible" title="上传记录" width="60%" footer-hide>
+    <Modal
+      v-model="uploadRecordsVisible"
+      title="上传记录"
+      footer-hide
+      :style="{ minWidth: '1000px' }"
+    >
       <Spin :size="'large'" v-if="loading" fix />
       <div class="grid-container" v-if="uploadRecords.length > 0">
         <Card
@@ -346,7 +351,6 @@ const beforeClear = () => {
 }
 
 .upload-card {
-  width: 200px;
   border: 1px solid #f0f0f0;
   border-radius: 8px;
   overflow: hidden;
@@ -368,5 +372,34 @@ const beforeClear = () => {
   color: #999;
   font-size: 16px;
   padding: 20px;
+}
+/* 模态框动画 */
+.modal-slide-enter-active,
+.modal-slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.modal-slide-enter-from,
+.modal-slide-leave-to {
+  transform: translateY(-20px); /* 从上方滑入 */
+  opacity: 0;
+}
+.modal-slide-enter-to,
+.modal-slide-leave-from {
+  transform: translateY(0); /* 回到原位 */
+  opacity: 1;
+}
+
+/* 背景动画 */
+.modal-fade-enter-active,
+.modal-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.modal-fade-enter-from,
+.modal-fade-leave-to {
+  opacity: 0;
+}
+.modal-fade-enter-to,
+.modal-fade-leave-from {
+  opacity: 1;
 }
 </style>
